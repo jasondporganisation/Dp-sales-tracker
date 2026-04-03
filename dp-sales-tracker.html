@@ -412,6 +412,9 @@ function fmtDate(str) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${parseInt(d)} ${months[parseInt(m)-1]}`;
 }
+function normalizeCase(raw) {
+  return { ...raw, premium: Number(raw.premium) || 0 };
+}
 function fmtCurrency(n) {
   return 'SGD ' + Math.round(n).toLocaleString('en-SG');
 }
@@ -609,7 +612,7 @@ function loadLogTab() {
       return;
     }
     const items = [];
-    snap.forEach(d => items.push(d.data()));
+    snap.forEach(d => items.push(normalizeCase(d.data())));
     items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
     el.innerHTML = items.map(c => `
       <div class="slide-in flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
@@ -653,7 +656,7 @@ function loadStats() {
     .where('date', '>=', start);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderStats(cases);
   }, err => console.error('loadStats:', err));
   activeUnsubs.push(unsub);
@@ -734,7 +737,7 @@ function loadLeaderboard() {
   const q = db.collection('cases').where('date', '>=', start);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderLeaderboard(cases);
   }, err => console.error('loadLeaderboard:', err));
   activeUnsubs.push(unsub);
@@ -796,7 +799,7 @@ function loadDashboard() {
   const q = db.collection('cases').where('date', '>=', start);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderDashboard(cases);
   }, err => console.error('loadDashboard:', err));
   activeUnsubs.push(unsub);
@@ -870,7 +873,7 @@ async function refreshReport() {
   try {
     const snap = await db.collection('cases').where('date', '==', todayStr()).get();
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     preview.textContent = buildReportText(cases);
   } catch(e) {
     console.error('Report error:', e);
