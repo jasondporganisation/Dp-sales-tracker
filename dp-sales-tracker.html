@@ -229,11 +229,13 @@
 
     <!-- ── TAB: LEADERBOARD ── -->
     <div id="tab-leaderboard" class="tab-content px-4 pt-5">
-      <div class="flex gap-2 mb-4">
-        <button id="board-btn-week" onclick="setBoardPeriod('week')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
-        <button id="board-btn-month" onclick="setBoardPeriod('month')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+      <div class="flex gap-2 mb-4 items-center">
+        <button id="board-btn-week" onclick="setBoardPeriod('week')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Week</button>
+        <button id="board-btn-month" onclick="setBoardPeriod('month')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Month</button>
+        <input id="board-month-picker" type="month" class="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 border-gray-200 text-gray-700 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setBoardMonth(this.value)">
       </div>
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <p id="board-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">This Month</p>
         <div id="leaderboard-list" class="space-y-2"></div>
       </div>
     </div>
@@ -732,26 +734,65 @@ function renderStats(cases) {
 //  TAB: LEADERBOARD
 // ══════════════════════════════════════════════════════════════
 let boardPeriod = 'month';
+let boardCustomMonth = null; // e.g. '2026-03'
 
 function setBoardPeriod(p) {
   boardPeriod = p;
-  const wBtn = document.getElementById('board-btn-week');
-  const mBtn = document.getElementById('board-btn-month');
-  if (p === 'week') {
-    Object.assign(wBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(mBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  } else {
-    Object.assign(mBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(wBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  }
+  boardCustomMonth = null;
+  document.getElementById('board-month-picker').value = '';
+  updateBoardButtons();
   clearUnsubs();
   loadLeaderboard();
 }
 
+function setBoardMonth(val) {
+  if (!val) return;
+  boardPeriod = 'custom';
+  boardCustomMonth = val;
+  updateBoardButtons();
+  clearUnsubs();
+  loadLeaderboard();
+}
+
+function updateBoardButtons() {
+  const wBtn = document.getElementById('board-btn-week');
+  const mBtn = document.getElementById('board-btn-month');
+  const label = document.getElementById('board-period-label');
+  const activeStyle = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactiveStyle = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  if (boardPeriod === 'week') {
+    Object.assign(wBtn.style, activeStyle);
+    Object.assign(mBtn.style, inactiveStyle);
+    label.textContent = 'This Week';
+  } else if (boardPeriod === 'month') {
+    Object.assign(mBtn.style, activeStyle);
+    Object.assign(wBtn.style, inactiveStyle);
+    label.textContent = 'This Month';
+  } else {
+    Object.assign(wBtn.style, inactiveStyle);
+    Object.assign(mBtn.style, inactiveStyle);
+    const [y, m] = boardCustomMonth.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label.textContent = `${months[parseInt(m)-1]} ${y}`;
+  }
+}
+
 function loadLeaderboard() {
   if (!db) return;
-  const start = boardPeriod === 'week' ? weekStartStr() : monthStartStr();
-  const q = db.collection('cases').where('date', '>=', start);
+  let startDate, endDate;
+  if (boardPeriod === 'week') {
+    startDate = weekStartStr();
+  } else if (boardPeriod === 'month') {
+    startDate = monthStartStr();
+  } else {
+    // Custom month: query by month field or date range
+    const [y, m] = boardCustomMonth.split('-');
+    startDate = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  }
+  let q = db.collection('cases').where('date', '>=', startDate);
+  if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
     snap.forEach(d => cases.push(normalizeCase(d.data())));
