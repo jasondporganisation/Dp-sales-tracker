@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DP Sales Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; }
+    .slide-in { animation: slideIn 0.15s ease; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-slide-up { animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px !important; -webkit-appearance: none; appearance: none; }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    .nav-tab.active { color: #1e3a5f; border-bottom: 2.5px solid #1e3a5f; }
+    .nav-tab { color: #9ca3af; border-bottom: 2.5px solid transparent; transition: all 0.15s; }
+    .pill { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+    .pill-life { background: #dbeafe; color: #1d4ed8; }
+    .pill-ah { background: #dcfce7; color: #15803d; }
+    .pill-inv { background: #f3e8ff; color: #7e22ce; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .live-dot { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+    .setup-screen { position: fixed; inset: 0; z-index: 100; background: white; overflow-y: auto; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     FIREBASE SETUP SCREEN
+     Shown when Firebase is not yet configured
+═══════════════════════════════════════ -->
+<div id="setup-screen" class="setup-screen hidden">
+  <div class="max-w-lg mx-auto p-6 pt-10">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style="background:#1e3a5f;">
+        <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <h1 class="text-xl font-bold text-gray-900">Firebase Setup Required</h1>
+      <p class="text-gray-500 text-sm mt-1">One-time setup to enable real-time data sync across all devices</p>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-800">
+      <strong>Why Firebase?</strong> It's the free cloud database that lets all 14 agents log cases from their phones and have managers see everything live.
+    </div>
+    <div class="space-y-4 text-sm text-gray-700">
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="font-semibold text-gray-900 mb-2">Step 1 — Create a Firebase project</p>
+        <ol class="list-decimal list-inside space-y-1 text-gray-600">
+          <li>Go to <strong>console.firebase.google.com</strong></li>
+          <li>Click <strong>Add project</strong> → name it <em>dp-sales-tracker</em></li>
+          <li>Disable Google Analytics (not needed) → <strong>Create project</strong></li>
+        </ol>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="font-semibold text-gray-900 mb-2">Step 2 — Enable Firestore</p>
+        <ol class="list-decimal list-inside space-y-1 text-gray-600">
+          <li>In your project → <strong>Build → Firestore Database</strong></li>
+          <li>Click <strong>Create database</strong> → choose <strong>Start in test mode</strong></li>
+          <li>Select <strong>asia-southeast1 (Singapore)</strong> for best speed</li>
+        </ol>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="font-semibold text-gray-900 mb-2">Step 3 — Get your config</p>
+        <ol class="list-decimal list-inside space-y-1 text-gray-600">
+          <li>In your project → <strong>Project Settings</strong> (gear icon)</li>
+          <li>Scroll to <strong>Your apps</strong> → click the <strong>&lt;/&gt;</strong> (Web) icon</li>
+          <li>Register app as <em>dp-web</em> → copy the <strong>firebaseConfig</strong> object</li>
+        </ol>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="font-semibold text-gray-900 mb-2">Step 4 — Paste your config below</p>
+        <textarea id="config-input" rows="8" placeholder='Paste your firebaseConfig here, e.g.:
+{
+  apiKey: "AIza...",
+  authDomain: "your-app.firebaseapp.com",
+  projectId: "your-app-id",
+  storageBucket: "your-app.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123..."
+}' class="w-full rounded-lg border border-gray-200 p-3 text-xs font-mono text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+        <button onclick="applyConfig()" class="w-full mt-3 py-3 rounded-xl text-white font-semibold" style="background:#1e3a5f;">
+          Apply Config & Launch App
+        </button>
+        <p id="config-error" class="text-red-500 text-xs mt-2 hidden"></p>
+      </div>
+    </div>
+    <p class="text-center text-xs text-gray-400 mt-6">Firebase free tier supports up to 50,000 reads/day — more than enough for your agency.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     LOGIN VIEW
+═══════════════════════════════════════ -->
+<div id="login-view" class="hidden min-h-screen flex items-center justify-center px-5">
+  <div class="w-full max-w-xs">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg" style="background:#1e3a5f;">
+        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">DP Sales Tracker</h1>
+      <p class="text-gray-400 text-sm mt-1">Great Eastern Life</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <label class="block text-sm font-medium text-gray-700 mb-2">IAC Number</label>
+      <input id="iac-input" type="text" inputmode="text" placeholder="Enter your IAC"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 text-lg tracking-widest focus:outline-none focus:ring-2 focus:border-transparent mb-1"
+        style="--tw-ring-color: #1e3a5f;" autocomplete="off">
+      <p id="login-error" class="text-red-500 text-xs mb-3 hidden"></p>
+      <button onclick="doLogin()" class="w-full mt-3 py-3.5 rounded-xl text-white font-semibold text-base transition-opacity active:opacity-80" style="background:#1e3a5f;">
+        Login
+      </button>
+    </div>
+    <p class="text-center text-xs text-gray-400 mt-4">Director: use login ID <strong>DIRECTOR</strong></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MAIN APP VIEW
+═══════════════════════════════════════ -->
+<div id="app-view" class="hidden" style="min-height: 100dvh;">
+
+  <!-- Header -->
+  <div id="app-header" class="sticky top-0 z-20 px-4 pt-safe pt-4 pb-3 shadow-sm" style="background:#1e3a5f;">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-xs font-medium" style="color:#93c5fd;">DP Sales Tracker</p>
+        <h2 class="font-bold text-white text-lg leading-tight" id="header-name">—</h2>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5 bg-green-500 rounded-full px-2.5 py-1">
+          <span class="w-1.5 h-1.5 bg-white rounded-full live-dot"></span>
+          <span class="text-white text-xs font-semibold">LIVE</span>
+        </div>
+        <button onclick="doLogout()" class="text-xs font-medium py-1 px-2 rounded-lg" style="color:#93c5fd; border: 1px solid rgba(147,197,253,0.3);">Logout</button>
+      </div>
+    </div>
+    <p class="text-xs mt-0.5" style="color:#bfdbfe;" id="header-date"></p>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div id="nav-bar" class="flex bg-white border-b border-gray-200 sticky top-[72px] z-10 shadow-sm">
+    <!-- Injected by JS -->
+  </div>
+
+  <!-- Tab Contents -->
+  <div class="pb-12">
+
+    <!-- ── TAB: LOG CASES ── -->
+    <div id="tab-log" class="tab-content px-4 pt-5">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <h3 class="font-semibold text-gray-800 mb-4 text-base">Add a Case</h3>
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
+          <select id="inp-case-type" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+            <option value="">Select type...</option>
+            <option value="Life">Life</option>
+            <option value="A&amp;H">Accident &amp; Hospital (A&amp;H)</option>
+            <option value="Investment">Investment</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
+            <input id="inp-premium" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
+              class="w-full pl-8 pr-4 py-3.5 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2"
+              style="--tw-ring-color:#1e3a5f;">
+          </div>
+        </div>
+        <button onclick="addToQueue()" class="w-full py-3.5 rounded-xl text-white font-semibold text-base flex items-center justify-center gap-2 transition-opacity active:opacity-80" style="background:#2563eb;">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Add to Queue
+        </button>
+      </div>
+
+      <!-- Queue -->
+      <div id="queue-wrap" class="hidden mb-4">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <p class="font-semibold text-gray-800">Ready to Submit</p>
+          <span id="queue-badge" class="pill" style="background:#dbeafe; color:#1d4ed8;"></span>
+        </div>
+        <div id="queue-list" class="space-y-2 mb-3"></div>
+        <button onclick="submitQueue()" class="w-full py-3.5 rounded-xl text-white font-bold text-base transition-opacity active:opacity-80 flex items-center justify-center gap-2" style="background:#16a34a;">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          Submit All Cases
+        </button>
+      </div>
+
+      <!-- Today's cases -->
+      <div>
+        <p class="font-semibold text-gray-800 mb-2 px-1">Today's Submitted Cases</p>
+        <div id="today-list">
+          <div class="text-center text-gray-400 text-sm py-6">No cases submitted today</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: MY STATS ── -->
+    <div id="tab-stats" class="tab-content px-4 pt-5">
+      <div class="flex gap-2 mb-4">
+        <button id="stats-btn-week" onclick="setStatsPeriod('week')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
+        <button id="stats-btn-month" onclick="setStatsPeriod('month')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <p class="text-xs text-gray-400 mb-1">Total Cases</p>
+          <p class="text-3xl font-bold text-gray-900" id="my-total-cases">0</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <p class="text-xs text-gray-400 mb-1">Total Premium</p>
+          <p class="text-lg font-bold text-gray-900 leading-tight mt-1" id="my-total-premium">SGD 0</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <p class="font-semibold text-gray-800 mb-4">By Case Type</p>
+        <div id="my-by-type" class="space-y-4"></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <p class="font-semibold text-gray-800 mb-3">Daily Breakdown</p>
+        <div id="my-daily" class="space-y-1"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: LEADERBOARD ── -->
+    <div id="tab-leaderboard" class="tab-content px-4 pt-5">
+      <div class="flex gap-2 mb-4">
+        <button id="board-btn-week" onclick="setBoardPeriod('week')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
+        <button id="board-btn-month" onclick="setBoardPeriod('month')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <div id="leaderboard-list" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: DASHBOARD ── -->
+    <div id="tab-dashboard" class="tab-content px-4 pt-5">
+      <!-- Period selector -->
+      <div class="flex gap-2 mb-4">
+        <button id="dash-btn-today" onclick="setDashPeriod('today')" class="px-3 py-2 rounded-xl text-xs font-semibold transition-all" style="background:#1e3a5f; color:white;">Today</button>
+        <button id="dash-btn-week" onclick="setDashPeriod('week')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 transition-all">This Week</button>
+        <button id="dash-btn-month" onclick="setDashPeriod('month')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 transition-all">This Month</button>
+      </div>
+      <!-- Summary row -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
+          <p class="text-xs text-gray-400">Cases</p>
+          <p class="text-2xl font-bold text-gray-900" id="dash-total-cases">0</p>
+        </div>
+        <div class="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
+          <p class="text-xs text-gray-400">Total Premium</p>
+          <p class="text-xl font-bold text-gray-900" id="dash-total-prem">SGD 0</p>
+        </div>
+      </div>
+      <!-- Type breakdown -->
+      <div class="grid grid-cols-3 gap-3 mb-4" id="dash-type-cards">
+        <div class="bg-blue-50 rounded-2xl p-3 text-center"><p class="text-xs font-medium text-blue-600">Life</p><p class="text-xl font-bold text-blue-800" id="dash-life-count">0</p><p class="text-xs text-blue-500" id="dash-life-prem">SGD 0</p></div>
+        <div class="bg-green-50 rounded-2xl p-3 text-center"><p class="text-xs font-medium text-green-600">A&amp;H</p><p class="text-xl font-bold text-green-800" id="dash-ah-count">0</p><p class="text-xs text-green-500" id="dash-ah-prem">SGD 0</p></div>
+        <div class="bg-purple-50 rounded-2xl p-3 text-center"><p class="text-xs font-medium text-purple-600">Invest</p><p class="text-xl font-bold text-purple-800" id="dash-inv-count">0</p><p class="text-xs text-purple-500" id="dash-inv-prem">SGD 0</p></div>
+      </div>
+      <!-- Agent breakdown -->
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <p class="font-semibold text-gray-800 mb-3">Agent Breakdown</p>
+        <div id="dash-agent-list"></div>
+      </div>
+    </div>
+
+    <!-- ── TAB: REPORT ── -->
+    <div id="tab-report" class="tab-content px-4 pt-5">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <div class="flex items-start justify-between mb-1">
+          <div>
+            <p class="font-semibold text-gray-800">Daily WhatsApp Report</p>
+            <p class="text-xs text-gray-400 mt-0.5">Cut-off: 9:45 PM · Recipient: +65 8649 5495</p>
+          </div>
+          <button onclick="refreshReport()" class="text-xs text-blue-500 font-medium py-1 px-2 rounded-lg border border-blue-100 bg-blue-50 flex-shrink-0">Refresh</button>
+        </div>
+        <div class="mt-3 bg-gray-50 rounded-xl p-4 text-xs font-mono text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-100" id="report-preview" style="max-height: 400px; overflow-y: auto;">
+          Tap Refresh to generate today's report...
+        </div>
+      </div>
+      <button onclick="sendWhatsApp()" class="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-3 shadow-lg transition-opacity active:opacity-80" style="background:#25D366;">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        Open WhatsApp to Send
+      </button>
+      <p class="text-center text-xs text-gray-400 mt-3">This opens WhatsApp Web with the report pre-filled. Just tap Send.</p>
+    </div>
+
+  </div>
+</div><!-- end app-view -->
+
+<!-- ═══════════════════════════════════════
+     EDIT CASE MODAL
+═══════════════════════════════════════ -->
+<div id="edit-modal" class="hidden fixed inset-0 z-50 flex items-end bg-black bg-opacity-40" onclick="if(event.target === this) closeEditModal()">
+  <div class="w-full bg-white rounded-t-3xl p-6 animate-slide-up">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-bold text-gray-900 text-lg">Edit Case</h3>
+      <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
+      <select id="edit-case-type" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+        <option value="Life">Life</option>
+        <option value="A&amp;H">Accident &amp; Hospital (A&amp;H)</option>
+        <option value="Investment">Investment</option>
+      </select>
+    </div>
+    <div class="mb-6">
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
+      <div class="relative">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
+        <input id="edit-premium" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
+          class="w-full pl-8 pr-4 py-3.5 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2"
+          style="--tw-ring-color:#1e3a5f;">
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="saveEditCase()" class="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-opacity active:opacity-80" style="background:#16a34a;">
+        Save Changes
+      </button>
+      <button onclick="deleteCase()" class="py-3.5 px-4 rounded-xl text-red-600 font-semibold text-base border-2 border-red-200 bg-red-50 transition-opacity active:opacity-80">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </button>
+    </div>
+    <button onclick="closeEditModal()" class="w-full mt-3 py-3 rounded-xl text-gray-600 font-semibold text-base border border-gray-200 transition-opacity active:opacity-80">
+      Cancel
+    </button>
+  </div>
+</div>
+
+<!-- ─── Firebase SDK ─────────────────────── -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  FIREBASE CONFIG
+//  Replace this object with your own Firebase project config.
+//  Get it from: Firebase Console → Project Settings → Your apps
+// ══════════════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDeK-u4j1aSNqio8JUDui9g_XQBN0E9XPE",
+  authDomain: "dp-sales-tracker.firebaseapp.com",
+  projectId: "dp-sales-tracker",
+  storageBucket: "dp-sales-tracker.firebasestorage.app",
+  messagingSenderId: "799754555863",
+  appId: "1:799754555863:web:1fa803d34fbd82f6de7b92"
+};
+
+// ══════════════════════════════════════════════════════════════
+//  USER REGISTRY  (IAC → name + role)
+//  Roles: 'agent' | 'manager' | 'director'
+//  Managers: can view all agents, generate reports
+//  Director: same as manager
+// ══════════════════════════════════════════════════════════════
+const USERS = {
+  '1220688': { name: 'Alvin Tang Wei Guan',        role: 'manager'  },
+  '1286433': { name: 'Foo Chun Xuan',               role: 'agent'    },
+  '1248892': { name: 'Wong Casey',                  role: 'agent'    },
+  '1243564': { name: 'Chua Chin Chin Zwen',         role: 'agent'    },
+  '1272173': { name: 'Loh Eng Kiat Daniel',         role: 'agent'    },
+  '1231795': { name: 'Ng Kian Yong Samson',         role: 'manager'  },
+  '1231370': { name: 'Celine Teresa Foo',           role: 'agent'    },
+  '1243696': { name: 'Chen Siang Hui',              role: 'agent'    },
+  '1281067': { name: 'Huang Jianshun Richmond',     role: 'agent'    },
+  '1220696': { name: 'Teo Rui Ling Pauline',        role: 'agent'    },
+  '1287511': { name: 'Ng Tian Poh Marco',           role: 'agent'    },
+  '1127688': { name: 'Ong Wui Swoon',               role: 'agent'    },
+  '1249341': { name: 'Tan Guan Ming',               role: 'agent'    },
+  '1269687': { name: 'Tan Verne Lyankuang',         role: 'agent'    },
+  'DIRECTOR': { name: 'Jason Ng',                   role: 'director' }
+};
+
+const WHATSAPP_NUMBER = '6586495495'; // +65 8649 5495
+
+// ══════════════════════════════════════════════════════════════
+//  APP STATE
+// ══════════════════════════════════════════════════════════════
+let db            = null;
+let currentUser   = null;
+let caseQueue     = [];
+let statsPeriod   = 'week';
+let dashPeriod    = 'today';
+let activeUnsubs  = [];
+let currentTab    = null;
+
+// ══════════════════════════════════════════════════════════════
+//  FIREBASE INIT
+// ══════════════════════════════════════════════════════════════
+function initFirebase(config) {
+  try {
+    // Check if already initialized
+    if (!firebase.apps.length) {
+      firebase.initializeApp(config);
+    }
+    db = firebase.firestore();
+    // Quick connectivity test
+    db.collection('_ping').limit(1).get().catch(() => {}); // silent
+    return true;
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    return false;
+  }
+}
+
+function isConfigured(config) {
+  return config && config.apiKey && config.apiKey !== 'REPLACE_ME';
+}
+
+// Allow pasting config from setup screen
+function applyConfig() {
+  const raw = document.getElementById('config-input').value.trim();
+  const errEl = document.getElementById('config-error');
+  errEl.classList.add('hidden');
+  try {
+    // Eval in a sandboxed way — just extract key:value pairs
+    const cleaned = raw.replace(/^const\s+\w+\s*=\s*/, '').replace(/;?\s*$/, '');
+    const obj = Function('"use strict"; return (' + cleaned + ')')();
+    if (!obj.apiKey || !obj.projectId) throw new Error('Missing required fields');
+    localStorage.setItem('dp_firebase_config', JSON.stringify(obj));
+    location.reload();
+  } catch(e) {
+    errEl.textContent = 'Could not parse config. Please copy the exact firebaseConfig object from Firebase Console.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DATE HELPERS
+// ══════════════════════════════════════════════════════════════
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function weekStartStr() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - (day === 0 ? 6 : day - 1); // Monday
+  return new Date(d.getFullYear(), d.getMonth(), diff).toISOString().slice(0, 10);
+}
+function monthStartStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+function fmtDate(str) {
+  const [y, m, d] = str.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(d)} ${months[parseInt(m)-1]}`;
+}
+function fmtCurrency(n) {
+  return 'SGD ' + Math.round(n).toLocaleString('en-SG');
+}
+function pillClass(type) {
+  if (type === 'Life')       return 'pill pill-life';
+  if (type === 'A&H')        return 'pill pill-ah';
+  if (type === 'Investment') return 'pill pill-inv';
+  return 'pill';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════════
+document.getElementById('iac-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+function doLogin() {
+  const raw = document.getElementById('iac-input').value.trim();
+  const key = raw.toUpperCase() === 'DIRECTOR' ? 'DIRECTOR' : raw;
+  const user = USERS[key];
+  const errEl = document.getElementById('login-error');
+  if (!user) {
+    errEl.textContent = 'IAC not recognised. Please try again.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  currentUser = { iac: key, ...user };
+  sessionStorage.setItem('dp_user', JSON.stringify(currentUser));
+  renderApp();
+}
+
+function doLogout() {
+  clearUnsubs();
+  currentUser = null;
+  caseQueue = [];
+  currentTab = null;
+  sessionStorage.removeItem('dp_user');
+  document.getElementById('app-view').classList.add('hidden');
+  document.getElementById('login-view').classList.remove('hidden');
+  document.getElementById('iac-input').value = '';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  APP RENDER
+// ══════════════════════════════════════════════════════════════
+function renderApp() {
+  document.getElementById('login-view').classList.add('hidden');
+  document.getElementById('app-view').classList.remove('hidden');
+
+  const u = currentUser;
+  document.getElementById('header-name').textContent = u.name;
+  document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-SG', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  buildNav();
+  const isPriv = u.role === 'manager' || u.role === 'director';
+  showTab(isPriv ? 'dashboard' : 'log');
+}
+
+function buildNav() {
+  const isPriv = currentUser.role === 'manager' || currentUser.role === 'director';
+  const tabs = [
+    { id: 'log',       label: 'Log Cases', icon: '📝' },
+    { id: 'stats',     label: 'My Stats',  icon: '📊' },
+    { id: 'leaderboard', label: 'Leaderboard', icon: '🏆' },
+    ...(isPriv ? [
+      { id: 'dashboard', label: 'Dashboard', icon: '🏢' },
+      { id: 'report',    label: 'Report',    icon: '📤' }
+    ] : [])
+  ];
+  const nav = document.getElementById('nav-bar');
+  nav.innerHTML = tabs.map(t => `
+    <button id="nav-${t.id}" onclick="showTab('${t.id}')"
+      class="nav-tab flex-1 py-2.5 flex flex-col items-center gap-0.5 text-xs font-medium transition-all">
+      <span class="text-base leading-none">${t.icon}</span>
+      <span>${t.label}</span>
+    </button>
+  `).join('');
+}
+
+function showTab(id) {
+  clearUnsubs();
+  currentTab = id;
+
+  // Nav highlight
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.getElementById(`nav-${id}`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  // Content
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  const tabEl = document.getElementById(`tab-${id}`);
+  if (tabEl) tabEl.classList.add('active');
+
+  // Load data
+  if (id === 'log')         loadLogTab();
+  if (id === 'stats')       loadStats();
+  if (id === 'leaderboard') loadLeaderboard();
+  if (id === 'dashboard')   loadDashboard();
+  if (id === 'report')      refreshReport();
+}
+
+function clearUnsubs() {
+  activeUnsubs.forEach(fn => { try { fn(); } catch(e) {} });
+  activeUnsubs = [];
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB: LOG CASES
+// ══════════════════════════════════════════════════════════════
+function addToQueue() {
+  const type = document.getElementById('inp-case-type').value;
+  const prem = parseFloat(document.getElementById('inp-premium').value);
+  if (!type)             { alert('Please select a case type.'); return; }
+  if (!prem || prem <= 0){ alert('Please enter a valid premium amount.'); return; }
+  caseQueue.push({ id: Date.now(), type, prem });
+  document.getElementById('inp-case-type').value = '';
+  document.getElementById('inp-premium').value   = '';
+  renderQueue();
+}
+
+function removeFromQueue(id) {
+  caseQueue = caseQueue.filter(c => c.id !== id);
+  renderQueue();
+}
+
+function renderQueue() {
+  const wrap  = document.getElementById('queue-wrap');
+  const list  = document.getElementById('queue-list');
+  const badge = document.getElementById('queue-badge');
+  if (caseQueue.length === 0) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  badge.textContent = `${caseQueue.length} case${caseQueue.length > 1 ? 's' : ''}`;
+  list.innerHTML = caseQueue.map(c => `
+    <div class="slide-in flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
+      <div class="flex items-center gap-2">
+        <span class="${pillClass(c.type)}">${c.type}</span>
+        <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.prem)}</span>
+      </div>
+      <button onclick="removeFromQueue(${c.id})" class="text-gray-300 hover:text-red-400 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+async function submitQueue() {
+  if (!db)                { alert('Firebase not configured. Please complete setup first.'); return; }
+  if (caseQueue.length === 0) return;
+  const btn = document.querySelector('#tab-log button[onclick="submitQueue()"]');
+  try {
+    if (btn) { btn.textContent = 'Submitting...'; btn.disabled = true; }
+    const today = todayStr();
+    const now   = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const batch = db.batch();
+    caseQueue.forEach(c => {
+      const ref = db.collection('cases').doc();
+      batch.set(ref, {
+        agentIAC:   currentUser.iac,
+        agentName:  currentUser.name,
+        caseType:   c.type,
+        premium:    c.prem,
+        date:       today,
+        month:      month,
+        submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    caseQueue = [];
+    renderQueue();
+  } catch(e) {
+    console.error('Submit error:', e);
+    alert('Error submitting. Please check your connection and try again.');
+  } finally {
+    if (btn) {
+      btn.innerHTML = '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Submit All Cases';
+      btn.disabled = false;
+    }
+  }
+}
+
+let editingCase = null; // Track which case is being edited
+
+function loadLogTab() {
+  if (!db) return;
+  const q = db.collection('cases')
+    .where('agentIAC', '==', currentUser.iac)
+    .where('date', '==', todayStr());
+  const unsub = q.onSnapshot(snap => {
+    const el = document.getElementById('today-list');
+    if (snap.empty) {
+      el.innerHTML = '<div class="text-center text-gray-400 text-sm py-6">No cases submitted today</div>';
+      return;
+    }
+    const items = [];
+    snap.forEach(d => items.push({ ...d.data(), docId: d.id }));
+    items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+    el.innerHTML = items.map(c => `
+      <div class="slide-in flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
+        <div class="flex items-center gap-2">
+          <span class="${pillClass(c.caseType)}">${c.caseType}</span>
+          <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-400 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            Submitted
+          </span>
+          <button onclick="openEditModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-gray-300 hover:text-blue-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }, err => console.error('loadLogTab:', err));
+  activeUnsubs.push(unsub);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB: MY STATS
+// ══════════════════════════════════════════════════════════════
+function setStatsPeriod(p) {
+  statsPeriod = p;
+  const wBtn = document.getElementById('stats-btn-week');
+  const mBtn = document.getElementById('stats-btn-month');
+  if (p === 'week') {
+    Object.assign(wBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
+    Object.assign(mBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
+  } else {
+    Object.assign(mBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
+    Object.assign(wBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
+  }
+  clearUnsubs();
+  loadStats();
+}
+
+function loadStats() {
+  if (!db) return;
+  const start = statsPeriod === 'week' ? weekStartStr() : monthStartStr();
+  const q = db.collection('cases')
+    .where('agentIAC', '==', currentUser.iac)
+    .where('date', '>=', start);
+  const unsub = q.onSnapshot(snap => {
+    const cases = [];
+    snap.forEach(d => cases.push(d.data()));
+    renderStats(cases);
+  }, err => console.error('loadStats:', err));
+  activeUnsubs.push(unsub);
+}
+
+function renderStats(cases) {
+  const total = cases.length;
+  const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
+  document.getElementById('my-total-cases').textContent   = total;
+  document.getElementById('my-total-premium').textContent = fmtCurrency(totalPrem);
+
+  const TYPES = ['Life', 'A&H', 'Investment'];
+  const byType = {};
+  TYPES.forEach(t => { byType[t] = { cases: 0, premium: 0 }; });
+  cases.forEach(c => { if (byType[c.caseType]) { byType[c.caseType].cases++; byType[c.caseType].premium += c.premium; } });
+
+  const typeColors = { 'Life': '#3b82f6', 'A&H': '#22c55e', 'Investment': '#a855f7' };
+  document.getElementById('my-by-type').innerHTML = TYPES.map(t => {
+    const d   = byType[t];
+    const pct = totalPrem > 0 ? (d.premium / totalPrem * 100) : 0;
+    return `
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <span class="${pillClass(t)}">${t}</span>
+          <span class="text-xs text-gray-500">${d.cases} case${d.cases !== 1 ? 's' : ''} · ${fmtCurrency(d.premium)}</span>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-2">
+          <div class="h-2 rounded-full transition-all duration-500" style="width:${pct.toFixed(1)}%; background:${typeColors[t]}"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Daily
+  const byDate = {};
+  cases.forEach(c => {
+    if (!byDate[c.date]) byDate[c.date] = { cases: 0, premium: 0 };
+    byDate[c.date].cases++;
+    byDate[c.date].premium += c.premium;
+  });
+  const sorted = Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0]));
+  if (sorted.length === 0) {
+    document.getElementById('my-daily').innerHTML = '<p class="text-sm text-gray-400 text-center py-3">No data for this period</p>';
+    return;
+  }
+  document.getElementById('my-daily').innerHTML = sorted.map(([date, d]) => `
+    <div class="flex justify-between items-center py-2.5 border-b border-gray-50 last:border-0">
+      <span class="text-sm text-gray-600">${fmtDate(date)}</span>
+      <div class="text-right">
+        <span class="text-sm font-semibold text-gray-800">${fmtCurrency(d.premium)}</span>
+        <span class="text-xs text-gray-400 ml-1.5">${d.cases} case${d.cases !== 1 ? 's' : ''}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB: LEADERBOARD
+// ══════════════════════════════════════════════════════════════
+let boardPeriod = 'month';
+
+function setBoardPeriod(p) {
+  boardPeriod = p;
+  const wBtn = document.getElementById('board-btn-week');
+  const mBtn = document.getElementById('board-btn-month');
+  if (p === 'week') {
+    Object.assign(wBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
+    Object.assign(mBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
+  } else {
+    Object.assign(mBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
+    Object.assign(wBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
+  }
+  clearUnsubs();
+  loadLeaderboard();
+}
+
+function loadLeaderboard() {
+  if (!db) return;
+  const start = boardPeriod === 'week' ? weekStartStr() : monthStartStr();
+  const q = db.collection('cases').where('date', '>=', start);
+  const unsub = q.onSnapshot(snap => {
+    const cases = [];
+    snap.forEach(d => cases.push(d.data()));
+    renderLeaderboard(cases);
+  }, err => console.error('loadLeaderboard:', err));
+  activeUnsubs.push(unsub);
+}
+
+function renderLeaderboard(cases) {
+  const byAgent = {};
+  cases.forEach(c => {
+    if (!byAgent[c.agentIAC]) byAgent[c.agentIAC] = { name: c.agentName, cases: 0, premium: 0 };
+    byAgent[c.agentIAC].cases++;
+    byAgent[c.agentIAC].premium += c.premium;
+  });
+
+  const ranked = Object.entries(byAgent).sort((a, b) => b[1].premium - a[1].premium);
+  const listEl = document.getElementById('leaderboard-list');
+
+  if (ranked.length === 0) {
+    listEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No cases yet</p>';
+    return;
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  listEl.innerHTML = ranked.map(([iac, d], i) => {
+    const medal = medals[i] || (i + 1);
+    const isCurrentUser = iac === currentUser.iac;
+    const bgClass = isCurrentUser ? 'bg-blue-50 border-blue-200' : 'bg-white';
+    return `
+      <div class="flex items-center gap-3 p-4 rounded-xl border ${bgClass} ${isCurrentUser ? 'border-2' : 'border-gray-100'}">
+        <span class="text-2xl font-bold w-8 text-center">${medal}</span>
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-gray-800 truncate">${d.name}${isCurrentUser ? ' (You)' : ''}</p>
+          <p class="text-xs text-gray-400 mt-0.5">${d.cases} case${d.cases !== 1 ? 's' : ''}</p>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="text-lg font-bold text-gray-900">${fmtCurrency(d.premium)}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB: DASHBOARD
+// ══════════════════════════════════════════════════════════════
+function setDashPeriod(p) {
+  dashPeriod = p;
+  ['today','week','month'].forEach(x => {
+    const btn = document.getElementById(`dash-btn-${x}`);
+    if (x === p) { Object.assign(btn.style, { background: '#1e3a5f', color: 'white', border: 'none' }); }
+    else         { Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' }); }
+  });
+  clearUnsubs();
+  loadDashboard();
+}
+
+function loadDashboard() {
+  if (!db) return;
+  const start = dashPeriod === 'today' ? todayStr() : dashPeriod === 'week' ? weekStartStr() : monthStartStr();
+  const q = db.collection('cases').where('date', '>=', start);
+  const unsub = q.onSnapshot(snap => {
+    const cases = [];
+    snap.forEach(d => cases.push(d.data()));
+    renderDashboard(cases);
+  }, err => console.error('loadDashboard:', err));
+  activeUnsubs.push(unsub);
+}
+
+function renderDashboard(cases) {
+  const total     = cases.length;
+  const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
+  document.getElementById('dash-total-cases').textContent = total;
+  document.getElementById('dash-total-prem').textContent  = fmtCurrency(totalPrem);
+
+  const TYPES = ['Life', 'A&H', 'Investment'];
+  const ids   = { 'Life': 'life', 'A&H': 'ah', 'Investment': 'inv' };
+  const byType = {}; TYPES.forEach(t => { byType[t] = { cases: 0, premium: 0 }; });
+  cases.forEach(c => { if (byType[c.caseType]) { byType[c.caseType].cases++; byType[c.caseType].premium += c.premium; } });
+  TYPES.forEach(t => {
+    const k = ids[t];
+    document.getElementById(`dash-${k}-count`).textContent = byType[t].cases;
+    document.getElementById(`dash-${k}-prem`).textContent  = fmtCurrency(byType[t].premium);
+  });
+
+  // Per agent
+  const byAgent = {};
+  cases.forEach(c => {
+    if (!byAgent[c.agentIAC]) byAgent[c.agentIAC] = { name: c.agentName, cases: 0, premium: 0, byType: {} };
+    byAgent[c.agentIAC].cases++;
+    byAgent[c.agentIAC].premium += c.premium;
+    if (!byAgent[c.agentIAC].byType[c.caseType]) byAgent[c.agentIAC].byType[c.caseType] = { cases: 0, premium: 0 };
+    byAgent[c.agentIAC].byType[c.caseType].cases++;
+    byAgent[c.agentIAC].byType[c.caseType].premium += c.premium;
+  });
+
+  const ranked = Object.entries(byAgent).sort((a, b) => b[1].premium - a[1].premium);
+  const listEl = document.getElementById('dash-agent-list');
+
+  if (ranked.length === 0) {
+    listEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">No cases for this period</p>';
+    return;
+  }
+  listEl.innerHTML = ranked.map(([iac, d], i) => {
+    const breakdown = ['Life','A&H','Investment'].map(t => {
+      const v = d.byType[t];
+      if (!v || v.cases === 0) return '';
+      return `<span class="${pillClass(t)} mr-1 mb-1">${t} ${v.cases} · ${fmtCurrency(v.premium)}</span>`;
+    }).join('');
+    return `
+      <div class="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
+        <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
+          style="background:#1e3a5f; font-size:10px;">${i+1}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between gap-2">
+            <p class="font-semibold text-gray-800 text-sm leading-tight">${d.name}</p>
+            <div class="text-right flex-shrink-0">
+              <p class="text-sm font-bold text-gray-900">${fmtCurrency(d.premium)}</p>
+              <p class="text-xs text-gray-400">${d.cases} case${d.cases !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div class="flex flex-wrap mt-1.5">${breakdown}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TAB: REPORT
+// ══════════════════════════════════════════════════════════════
+async function refreshReport() {
+  const preview = document.getElementById('report-preview');
+  if (!db) { preview.textContent = 'Firebase not configured. Please complete setup first.'; return; }
+  preview.textContent = 'Generating report...';
+  try {
+    const snap = await db.collection('cases').where('date', '==', todayStr()).get();
+    const cases = [];
+    snap.forEach(d => cases.push(d.data()));
+    preview.textContent = buildReportText(cases);
+  } catch(e) {
+    console.error('Report error:', e);
+    preview.textContent = 'Error loading data. Please try again.';
+  }
+}
+
+function buildReportText(cases) {
+  const today     = todayStr();
+  const [y, m, d] = today.split('-');
+  const months    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateLabel = `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+
+  const total     = cases.length;
+  const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
+
+  const TYPES = ['Life', 'A&H', 'Investment'];
+  const byType = {}; TYPES.forEach(t => { byType[t] = { cases: 0, premium: 0 }; });
+  cases.forEach(c => { if (byType[c.caseType]) { byType[c.caseType].cases++; byType[c.caseType].premium += c.premium; } });
+
+  const byAgent = {};
+  cases.forEach(c => {
+    if (!byAgent[c.agentIAC]) byAgent[c.agentIAC] = { name: c.agentName, cases: 0, premium: 0, byType: {} };
+    byAgent[c.agentIAC].cases++;
+    byAgent[c.agentIAC].premium += c.premium;
+    if (!byAgent[c.agentIAC].byType[c.caseType]) byAgent[c.agentIAC].byType[c.caseType] = { cases: 0, premium: 0 };
+    byAgent[c.agentIAC].byType[c.caseType].cases++;
+    byAgent[c.agentIAC].byType[c.caseType].premium += c.premium;
+  });
+  const ranked = Object.entries(byAgent).sort((a, b) => b[1].premium - a[1].premium);
+
+  let t = '';
+  t += `📊 *DP ORGANISATION – DAILY SALES*\n`;
+  t += `📅 ${dateLabel}  |  Cut-off 9:45 PM\n\n`;
+  t += `━━━━━━━━━━━━━━━━━━\n`;
+  t += `📈 *AGENCY SUMMARY*\n`;
+  t += `━━━━━━━━━━━━━━━━━━\n`;
+  t += `Cases: *${total}*   Premium: *${fmtCurrency(totalPrem)}*\n\n`;
+  TYPES.forEach(type => {
+    const icon = type === 'Life' ? '🔵' : type === 'A&H' ? '🟢' : '🟣';
+    t += `${icon} ${type}: ${byType[type].cases} case${byType[type].cases !== 1 ? 's' : ''} | ${fmtCurrency(byType[type].premium)}\n`;
+  });
+  t += `\n━━━━━━━━━━━━━━━━━━\n`;
+  t += `👥 *AGENT BREAKDOWN*\n`;
+  t += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+  if (ranked.length === 0) {
+    t += `No cases reported today.\n`;
+  } else {
+    ranked.forEach(([iac, ag], i) => {
+      t += `${i + 1}. *${ag.name}*\n`;
+      TYPES.forEach(type => {
+        const v = ag.byType[type];
+        if (v && v.cases > 0) t += `   ${type}: ${v.cases} case${v.cases !== 1 ? 's' : ''} | ${fmtCurrency(v.premium)}\n`;
+      });
+      t += `   ▸ Total: ${ag.cases} case${ag.cases !== 1 ? 's' : ''} | *${fmtCurrency(ag.premium)}*\n\n`;
+    });
+
+    // No-case agents
+    const reportedIACs = new Set(Object.keys(byAgent));
+    const noCases = Object.entries(USERS).filter(([k, u]) => u.role === 'agent' && !reportedIACs.has(k));
+    if (noCases.length > 0) {
+      t += `━━━━━━━━━━━━━━━━━━\n`;
+      t += `❌ *No cases today:*\n`;
+      noCases.forEach(([, u]) => { t += `   • ${u.name}\n`; });
+    }
+  }
+  t += `\n_DP Sales Tracker · ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}_`;
+  return t;
+}
+
+function sendWhatsApp() {
+  const text = document.getElementById('report-preview').textContent;
+  if (!text || text.includes('not configured') || text.includes('Generating') || text.includes('Tap Refresh')) {
+    alert('Please tap Refresh to generate the report first.');
+    return;
+  }
+  window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  EDIT/DELETE CASE MODAL
+// ══════════════════════════════════════════════════════════════
+function openEditModal(caseData) {
+  editingCase = caseData;
+  document.getElementById('edit-case-type').value = caseData.caseType;
+  document.getElementById('edit-premium').value = caseData.premium;
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  editingCase = null;
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+async function saveEditCase() {
+  if (!editingCase) return;
+  const newType = document.getElementById('edit-case-type').value;
+  const newPrem = parseFloat(document.getElementById('edit-premium').value);
+  if (!newType) { alert('Please select a case type.'); return; }
+  if (!newPrem || newPrem <= 0) { alert('Please enter a valid premium amount.'); return; }
+
+  try {
+    await db.collection('cases').doc(editingCase.docId).update({
+      caseType: newType,
+      premium: newPrem
+    });
+    closeEditModal();
+  } catch(e) {
+    console.error('Update error:', e);
+    alert('Error updating case. Please try again.');
+  }
+}
+
+async function deleteCase() {
+  if (!editingCase) return;
+  if (!confirm('Are you sure you want to delete this case? This action cannot be undone.')) return;
+
+  try {
+    await db.collection('cases').doc(editingCase.docId).delete();
+    closeEditModal();
+  } catch(e) {
+    console.error('Delete error:', e);
+    alert('Error deleting case. Please try again.');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BOOTSTRAP
+// ══════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  // Try saved config first, then embedded config
+  let config = null;
+  const saved = localStorage.getItem('dp_firebase_config');
+  if (saved) {
+    try { config = JSON.parse(saved); } catch(e) {}
+  }
+  if (!config && isConfigured(FIREBASE_CONFIG)) {
+    config = FIREBASE_CONFIG;
+  }
+
+  if (config) {
+    initFirebase(config);
+    // Restore session
+    const savedUser = sessionStorage.getItem('dp_user');
+    if (savedUser) {
+      try {
+        currentUser = JSON.parse(savedUser);
+        renderApp();
+        return;
+      } catch(e) {}
+    }
+    document.getElementById('login-view').classList.remove('hidden');
+  } else {
+    document.getElementById('setup-screen').classList.remove('hidden');
+  }
+});
+</script>
+</body>
+</html>
