@@ -231,11 +231,13 @@
 
     <!-- ── TAB: LEADERBOARD ── -->
     <div id="tab-leaderboard" class="tab-content px-4 pt-5">
-      <div class="flex gap-2 mb-4">
-        <button id="board-btn-week" onclick="setBoardPeriod('week')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
-        <button id="board-btn-month" onclick="setBoardPeriod('month')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+      <div class="flex gap-2 mb-4 items-center">
+        <button id="board-btn-week" onclick="setBoardPeriod('week')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Week</button>
+        <button id="board-btn-month" onclick="setBoardPeriod('month')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Month</button>
+        <input id="board-month-picker" type="month" class="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 border-gray-200 text-gray-700 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setBoardMonth(this.value)">
       </div>
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <p id="board-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">This Month</p>
         <div id="leaderboard-list" class="space-y-2"></div>
       </div>
     </div>
@@ -291,6 +293,14 @@
         Open WhatsApp to Send
       </button>
       <p class="text-center text-xs text-gray-400 mt-3">This opens WhatsApp Web with the report pre-filled. Just tap Send.</p>
+      <button onclick="sendTelegram()" class="w-full mt-3 py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-3 shadow-lg transition-opacity active:opacity-80" style="background:#0088cc;">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+        Send to Telegram
+      </button>
+      <p id="telegram-status" class="text-center text-xs text-gray-400 mt-2"></p>
+      <div id="auto-send-info" class="mt-3 bg-blue-50 rounded-xl p-3 border border-blue-100 text-xs text-blue-700 hidden">
+        <span class="font-semibold">Auto-send enabled:</span> Report will be sent to Telegram daily at 9:45 PM SGT (page must be open).
+      </div>
     </div>
 
   </div>
@@ -382,10 +392,18 @@ const USERS = {
   '1127688': { name: 'Ong Wui Swoon',               role: 'agent'    },
   '1249341': { name: 'Tan Guan Ming',               role: 'agent'    },
   '1269687': { name: 'Tan Verne Lyankuang',         role: 'agent'    },
-  'DIRECTOR': { name: 'Jason Ng',                   role: 'director' }
+  '1220629':  { name: 'Jason Ng',                   role: 'director' }
 };
 
 const WHATSAPP_NUMBER = '6586495495'; // +65 8649 5495
+
+// ── TELEGRAM CONFIG ──
+// 1. Message @BotFather on Telegram → /newbot → copy the token
+// 2. Add the bot to your group → send a message → visit:
+//    https://api.telegram.org/bot<TOKEN>/getUpdates  to find the chat ID
+const TELEGRAM_BOT_TOKEN = ''; // e.g. '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
+const TELEGRAM_CHAT_ID   = ''; // e.g. '-1001234567890' (group) or '123456789' (user)
+const AUTO_SEND_TIME     = '21:45'; // 9:45 PM SGT — auto-send report to Telegram
 
 // ══════════════════════════════════════════════════════════════
 //  APP STATE
@@ -460,6 +478,9 @@ function fmtDate(str) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${parseInt(d)} ${months[parseInt(m)-1]}`;
 }
+function normalizeCase(raw) {
+  return { ...raw, premium: Number(raw.premium) || 0 };
+}
 function fmtCurrency(n) {
   return 'SGD ' + Math.round(n).toLocaleString('en-SG');
 }
@@ -516,6 +537,7 @@ function renderApp() {
   });
 
   buildNav();
+  startAutoSendScheduler();
   const isPriv = u.role === 'manager' || u.role === 'director';
   showTab(isPriv ? 'dashboard' : 'log');
 }
@@ -659,7 +681,7 @@ function loadLogTab() {
       return;
     }
     const items = [];
-    snap.forEach(d => items.push({ ...d.data(), docId: d.id }));
+    snap.forEach(d => items.push({ ...normalizeCase(d.data()), docId: d.id }));
     items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
     el.innerHTML = items.map(c => `
       <div class="slide-in flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
@@ -710,7 +732,7 @@ function loadStats() {
     .where('date', '>=', start);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderStats(cases);
   }, err => console.error('loadStats:', err));
   activeUnsubs.push(unsub);
@@ -769,29 +791,67 @@ function renderStats(cases) {
 //  TAB: LEADERBOARD
 // ══════════════════════════════════════════════════════════════
 let boardPeriod = 'month';
+let boardCustomMonth = null;
 
 function setBoardPeriod(p) {
   boardPeriod = p;
-  const wBtn = document.getElementById('board-btn-week');
-  const mBtn = document.getElementById('board-btn-month');
-  if (p === 'week') {
-    Object.assign(wBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(mBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  } else {
-    Object.assign(mBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(wBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  }
+  boardCustomMonth = null;
+  document.getElementById('board-month-picker').value = '';
+  updateBoardButtons();
   clearUnsubs();
   loadLeaderboard();
 }
 
+function setBoardMonth(val) {
+  if (!val) return;
+  boardPeriod = 'custom';
+  boardCustomMonth = val;
+  updateBoardButtons();
+  clearUnsubs();
+  loadLeaderboard();
+}
+
+function updateBoardButtons() {
+  const wBtn = document.getElementById('board-btn-week');
+  const mBtn = document.getElementById('board-btn-month');
+  const label = document.getElementById('board-period-label');
+  const activeStyle = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactiveStyle = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  if (boardPeriod === 'week') {
+    Object.assign(wBtn.style, activeStyle);
+    Object.assign(mBtn.style, inactiveStyle);
+    label.textContent = 'This Week';
+  } else if (boardPeriod === 'month') {
+    Object.assign(mBtn.style, activeStyle);
+    Object.assign(wBtn.style, inactiveStyle);
+    label.textContent = 'This Month';
+  } else {
+    Object.assign(wBtn.style, inactiveStyle);
+    Object.assign(mBtn.style, inactiveStyle);
+    const [y, m] = boardCustomMonth.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label.textContent = `${months[parseInt(m)-1]} ${y}`;
+  }
+}
+
 function loadLeaderboard() {
   if (!db) return;
-  const start = boardPeriod === 'week' ? weekStartStr() : monthStartStr();
-  const q = db.collection('cases').where('date', '>=', start);
+  let startDate, endDate;
+  if (boardPeriod === 'week') {
+    startDate = weekStartStr();
+  } else if (boardPeriod === 'month') {
+    startDate = monthStartStr();
+  } else {
+    const [y, m] = boardCustomMonth.split('-');
+    startDate = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  }
+  let q = db.collection('cases').where('date', '>=', startDate);
+  if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderLeaderboard(cases);
   }, err => console.error('loadLeaderboard:', err));
   activeUnsubs.push(unsub);
@@ -853,7 +913,7 @@ function loadDashboard() {
   const q = db.collection('cases').where('date', '>=', start);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderDashboard(cases);
   }, err => console.error('loadDashboard:', err));
   activeUnsubs.push(unsub);
@@ -927,7 +987,7 @@ async function refreshReport() {
   try {
     const snap = await db.collection('cases').where('date', '==', todayStr()).get();
     const cases = [];
-    snap.forEach(d => cases.push(d.data()));
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
     preview.textContent = buildReportText(cases);
   } catch(e) {
     console.error('Report error:', e);
@@ -1006,6 +1066,73 @@ function sendWhatsApp() {
     return;
   }
   window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TELEGRAM INTEGRATION
+// ══════════════════════════════════════════════════════════════
+async function sendTelegramMessage(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    throw new Error('Telegram bot token or chat ID not configured. Update TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the code.');
+  }
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'Markdown' })
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.description || 'Telegram API error');
+  return data;
+}
+
+async function sendTelegram() {
+  const statusEl = document.getElementById('telegram-status');
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    alert('Telegram not configured. Please set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the code.');
+    return;
+  }
+  if (!db) { alert('Firebase not configured.'); return; }
+
+  statusEl.textContent = 'Generating report & sending...';
+  statusEl.className = 'text-center text-xs text-blue-500 mt-2';
+  try {
+    const snap = await db.collection('cases').where('date', '==', todayStr()).get();
+    const cases = [];
+    snap.forEach(d => cases.push(normalizeCase(d.data())));
+    const text = buildReportText(cases);
+    document.getElementById('report-preview').textContent = text;
+    await sendTelegramMessage(text);
+    statusEl.textContent = 'Sent to Telegram successfully!';
+    statusEl.className = 'text-center text-xs text-green-600 mt-2 font-semibold';
+  } catch (e) {
+    console.error('Telegram send error:', e);
+    statusEl.textContent = 'Failed: ' + e.message;
+    statusEl.className = 'text-center text-xs text-red-500 mt-2';
+  }
+}
+
+// ── Auto-send scheduler ──
+let autoSendFired = false;
+function checkAutoSend() {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || !db) return;
+  const now = new Date();
+  const sgTime = now.toLocaleTimeString('en-SG', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' });
+
+  if (sgTime === AUTO_SEND_TIME && !autoSendFired) {
+    autoSendFired = true;
+    console.log('[Auto-send] Triggering Telegram report at', sgTime);
+    sendTelegram();
+  }
+  if (sgTime !== AUTO_SEND_TIME) {
+    autoSendFired = false;
+  }
+}
+
+function startAutoSendScheduler() {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  document.getElementById('auto-send-info').classList.remove('hidden');
+  setInterval(checkAutoSend, 30000);
 }
 
 // ══════════════════════════════════════════════════════════════
