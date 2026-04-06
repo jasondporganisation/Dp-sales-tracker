@@ -1265,7 +1265,7 @@ async function saveEditCase() {
   const editEntry = {
     editedBy: currentUser.name,
     editedByIAC: currentUser.iac,
-    editedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    editedAt: firebase.firestore.Timestamp.now(),
     oldType: editingCase.caseType,
     newType: newType,
     oldPremium: editingCase.premium,
