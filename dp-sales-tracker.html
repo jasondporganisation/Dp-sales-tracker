@@ -245,11 +245,13 @@
     <!-- ── TAB: DASHBOARD ── -->
     <div id="tab-dashboard" class="tab-content px-4 pt-5">
       <!-- Period selector -->
-      <div class="flex gap-2 mb-4">
+      <div class="flex gap-2 mb-2 items-center">
         <button id="dash-btn-today" onclick="setDashPeriod('today')" class="px-3 py-2 rounded-xl text-xs font-semibold transition-all" style="background:#1e3a5f; color:white;">Today</button>
         <button id="dash-btn-week" onclick="setDashPeriod('week')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 transition-all">This Week</button>
         <button id="dash-btn-month" onclick="setDashPeriod('month')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 transition-all">This Month</button>
+        <input id="dash-month-picker" type="month" class="flex-1 px-2 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setDashMonth(this.value)">
       </div>
+      <p id="dash-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Today</p>
       <!-- Summary row -->
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
@@ -896,21 +898,65 @@ function renderLeaderboard(cases) {
 // ══════════════════════════════════════════════════════════════
 //  TAB: DASHBOARD
 // ══════════════════════════════════════════════════════════════
+let dashCustomMonth = null;
+
 function setDashPeriod(p) {
   dashPeriod = p;
-  ['today','week','month'].forEach(x => {
-    const btn = document.getElementById(`dash-btn-${x}`);
-    if (x === p) { Object.assign(btn.style, { background: '#1e3a5f', color: 'white', border: 'none' }); }
-    else         { Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' }); }
-  });
+  dashCustomMonth = null;
+  document.getElementById('dash-month-picker').value = '';
+  updateDashButtons();
   clearUnsubs();
   loadDashboard();
 }
 
+function setDashMonth(val) {
+  if (!val) return;
+  dashPeriod = 'custom';
+  dashCustomMonth = val;
+  updateDashButtons();
+  clearUnsubs();
+  loadDashboard();
+}
+
+function updateDashButtons() {
+  const label = document.getElementById('dash-period-label');
+  ['today','week','month'].forEach(x => {
+    const btn = document.getElementById(`dash-btn-${x}`);
+    if (x === dashPeriod) { Object.assign(btn.style, { background: '#1e3a5f', color: 'white', border: 'none' }); }
+    else                  { Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' }); }
+  });
+  if (dashPeriod === 'today') label.textContent = 'Today';
+  else if (dashPeriod === 'week') label.textContent = 'This Week';
+  else if (dashPeriod === 'month') label.textContent = 'This Month';
+  else {
+    const [y, m] = dashCustomMonth.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label.textContent = `${months[parseInt(m)-1]} ${y}`;
+    // Deactivate preset buttons
+    ['today','week','month'].forEach(x => {
+      const btn = document.getElementById(`dash-btn-${x}`);
+      Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' });
+    });
+  }
+}
+
 function loadDashboard() {
   if (!db) return;
-  const start = dashPeriod === 'today' ? todayStr() : dashPeriod === 'week' ? weekStartStr() : monthStartStr();
-  const q = db.collection('cases').where('date', '>=', start);
+  let startDate, endDate;
+  if (dashPeriod === 'today') {
+    startDate = todayStr();
+  } else if (dashPeriod === 'week') {
+    startDate = weekStartStr();
+  } else if (dashPeriod === 'month') {
+    startDate = monthStartStr();
+  } else {
+    const [y, m] = dashCustomMonth.split('-');
+    startDate = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  }
+  let q = db.collection('cases').where('date', '>=', startDate);
+  if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
     snap.forEach(d => cases.push(normalizeCase(d.data())));
