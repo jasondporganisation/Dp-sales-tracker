@@ -697,6 +697,8 @@ function loadLogTab() {
     el.innerHTML = items.map(c => {
       const timeStr = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
       const edited = c.editHistory && c.editHistory.length > 0;
+      const lastEdit = edited ? c.editHistory[c.editHistory.length - 1] : null;
+      const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
       return `
       <div class="slide-in bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
         <div class="flex items-center justify-between">
@@ -712,9 +714,9 @@ function loadLogTab() {
             </button>
           </div>
         </div>
-        <div class="flex items-center gap-2 mt-1.5">
+        <div class="mt-1.5">
           <span class="text-xs text-gray-400">${timeStr}</span>
-          ${edited ? '<span class="text-xs text-amber-500 font-medium">· Edited</span>' : ''}
+          ${edited ? `<div class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</div>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -1025,13 +1027,17 @@ function renderDashboard(cases) {
       .map(c => {
         const time = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
         const edited = c.editHistory && c.editHistory.length > 0;
-        return `<div class="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-          <div class="flex items-center gap-1.5">
-            <span class="${pillClass(c.caseType)}" style="font-size:10px; padding:1px 6px;">${c.caseType}</span>
-            <span class="text-xs font-semibold text-gray-700">${fmtCurrency(c.premium)}</span>
-            ${edited ? '<span class="text-xs text-amber-500 font-medium">Edited</span>' : ''}
+        const lastEdit = edited ? c.editHistory[c.editHistory.length - 1] : null;
+        const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
+        return `<div class="py-1.5 border-b border-gray-50 last:border-0">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="${pillClass(c.caseType)}" style="font-size:10px; padding:1px 6px;">${c.caseType}</span>
+              <span class="text-xs font-semibold text-gray-700">${fmtCurrency(c.premium)}</span>
+            </div>
+            <span class="text-xs text-gray-400">${time}</span>
           </div>
-          <span class="text-xs text-gray-400">${time}</span>
+          ${edited ? `<p class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</p>` : ''}
         </div>`;
       }).join('');
     return `
