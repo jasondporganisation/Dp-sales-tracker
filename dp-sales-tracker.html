@@ -338,6 +338,10 @@
           style="--tw-ring-color:#1e3a5f;">
       </div>
     </div>
+    <div id="edit-history" class="hidden mb-4">
+      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Edit History</p>
+      <div id="edit-history-list" class="space-y-1 max-h-32 overflow-y-auto"></div>
+    </div>
     <div class="flex gap-2">
       <button onclick="saveEditCase()" class="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-opacity active:opacity-80" style="background:#16a34a;">
         Save Changes
@@ -485,6 +489,11 @@ function normalizeCase(raw) {
 }
 function fmtCurrency(n) {
   return 'SGD ' + Math.round(n).toLocaleString('en-SG');
+}
+function fmtTimestamp(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts.seconds * 1000);
+  return d.toLocaleString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
 }
 function pillClass(type) {
   if (type === 'Life')       return 'pill pill-life';
@@ -685,25 +694,30 @@ function loadLogTab() {
     const items = [];
     snap.forEach(d => items.push({ ...normalizeCase(d.data()), docId: d.id }));
     items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
-    el.innerHTML = items.map(c => `
-      <div class="slide-in flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
-        <div class="flex items-center gap-2">
-          <span class="${pillClass(c.caseType)}">${c.caseType}</span>
-          <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
+    el.innerHTML = items.map(c => {
+      const timeStr = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
+      const edited = c.editHistory && c.editHistory.length > 0;
+      return `
+      <div class="slide-in bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="${pillClass(c.caseType)}">${c.caseType}</span>
+            <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="openEditModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-gray-300 hover:text-blue-400 transition-colors">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-gray-400 flex items-center gap-1">
-            <svg class="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-            Submitted
-          </span>
-          <button onclick="openEditModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-gray-300 hover:text-blue-400 transition-colors">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-            </svg>
-          </button>
+        <div class="flex items-center gap-2 mt-1.5">
+          <span class="text-xs text-gray-400">${timeStr}</span>
+          ${edited ? '<span class="text-xs text-amber-500 font-medium">· Edited</span>' : ''}
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }, err => console.error('loadLogTab:', err));
   activeUnsubs.push(unsub);
 }
@@ -1188,6 +1202,27 @@ function openEditModal(caseData) {
   editingCase = caseData;
   document.getElementById('edit-case-type').value = caseData.caseType;
   document.getElementById('edit-premium').value = caseData.premium;
+
+  // Show edit history if exists
+  const historyWrap = document.getElementById('edit-history');
+  const historyList = document.getElementById('edit-history-list');
+  if (caseData.editHistory && caseData.editHistory.length > 0) {
+    historyWrap.classList.remove('hidden');
+    historyList.innerHTML = caseData.editHistory.map(h => {
+      const time = h.editedAt ? new Date(h.editedAt.seconds * 1000).toLocaleString('en-SG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' }) : '';
+      const changes = [];
+      if (h.oldType !== h.newType) changes.push(`${h.oldType} → ${h.newType}`);
+      if (h.oldPremium !== h.newPremium) changes.push(`${fmtCurrency(h.oldPremium)} → ${fmtCurrency(h.newPremium)}`);
+      return `<div class="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+        <span class="font-medium text-gray-700">${h.editedBy || 'Unknown'}</span> · ${time}
+        <div class="text-gray-400 mt-0.5">${changes.join(' · ') || 'No changes'}</div>
+      </div>`;
+    }).join('');
+  } else {
+    historyWrap.classList.add('hidden');
+    historyList.innerHTML = '';
+  }
+
   document.getElementById('edit-modal').classList.remove('hidden');
 }
 
@@ -1203,10 +1238,27 @@ async function saveEditCase() {
   if (!newType) { alert('Please select a case type.'); return; }
   if (!newPrem || newPrem <= 0) { alert('Please enter a valid premium amount.'); return; }
 
+  // Skip if nothing changed
+  if (newType === editingCase.caseType && newPrem === editingCase.premium) {
+    closeEditModal();
+    return;
+  }
+
+  const editEntry = {
+    editedBy: currentUser.name,
+    editedByIAC: currentUser.iac,
+    editedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    oldType: editingCase.caseType,
+    newType: newType,
+    oldPremium: editingCase.premium,
+    newPremium: newPrem
+  };
+
   try {
     await db.collection('cases').doc(editingCase.docId).update({
       caseType: newType,
-      premium: newPrem
+      premium: newPrem,
+      editHistory: firebase.firestore.FieldValue.arrayUnion(editEntry)
     });
     closeEditModal();
   } catch(e) {
