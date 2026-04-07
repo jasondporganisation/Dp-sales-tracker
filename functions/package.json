@@ -1,0 +1,11 @@
+{
+  "name": "dp-sales-tracker-functions",
+  "description": "Scheduled Telegram report for DP Sales Tracker",
+  "engines": { "node": "18" },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.11.0",
+    "firebase-functions": "^4.5.0",
+    "node-fetch": "^2.7.0"
+  }
+}
