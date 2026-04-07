@@ -159,20 +159,31 @@
         <h3 class="font-semibold text-gray-800 mb-4 text-base">Add a Case</h3>
         <div class="mb-3">
           <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
-          <select id="inp-case-type" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+          <select id="inp-case-type" onchange="onCaseTypeChange()" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
             <option value="">Select type...</option>
             <option value="Life">Life</option>
             <option value="A&amp;H">Accident &amp; Hospital (A&amp;H)</option>
             <option value="Investment">Investment</option>
           </select>
         </div>
+        <div id="inv-premium-type-wrap" class="mb-3 hidden">
+          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Premium Type</label>
+          <div class="flex gap-2">
+            <button id="btn-rp" onclick="setInvPremiumType('RP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">Regular (RP)</button>
+            <button id="btn-sp" onclick="setInvPremiumType('SP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">Single (SP)</button>
+          </div>
+        </div>
         <div class="mb-4">
-          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
+          <label id="premium-label" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
           <div class="relative">
             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
             <input id="inp-premium" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
               class="w-full pl-8 pr-4 py-3.5 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2"
               style="--tw-ring-color:#1e3a5f;">
+          </div>
+          <div id="sp-calc-info" class="hidden mt-2 bg-purple-50 rounded-lg px-3 py-2 border border-purple-100">
+            <p class="text-xs text-purple-700">Lump sum: <span id="sp-lump-sum" class="font-semibold">SGD 0</span></p>
+            <p class="text-xs text-purple-600 mt-0.5">10% counted for leaderboard: <span id="sp-counted" class="font-bold">SGD 0</span></p>
           </div>
         </div>
         <button onclick="addToQueue()" class="w-full py-3.5 rounded-xl text-white font-semibold text-base flex items-center justify-center gap-2 transition-opacity active:opacity-80" style="background:#2563eb;">
@@ -195,20 +206,29 @@
       </div>
 
       <!-- Today's cases -->
-      <div>
+      <div class="mb-4">
         <p class="font-semibold text-gray-800 mb-2 px-1">Today's Submitted Cases</p>
         <div id="today-list">
           <div class="text-center text-gray-400 text-sm py-6">No cases submitted today</div>
+        </div>
+      </div>
+      <!-- This month's cases -->
+      <div>
+        <p class="font-semibold text-gray-800 mb-2 px-1">This Month's Cases</p>
+        <div id="month-list">
+          <div class="text-center text-gray-400 text-sm py-6">No cases this month</div>
         </div>
       </div>
     </div>
 
     <!-- ── TAB: MY STATS ── -->
     <div id="tab-stats" class="tab-content px-4 pt-5">
-      <div class="flex gap-2 mb-4">
-        <button id="stats-btn-week" onclick="setStatsPeriod('week')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
-        <button id="stats-btn-month" onclick="setStatsPeriod('month')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+      <div class="flex gap-2 mb-2 items-center">
+        <button id="stats-btn-week" onclick="setStatsPeriod('week')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
+        <button id="stats-btn-month" onclick="setStatsPeriod('month')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+        <input id="stats-month-picker" type="month" class="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 border-gray-200 text-gray-700 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setStatsMonth(this.value)">
       </div>
+      <p id="stats-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">This Week</p>
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <p class="text-xs text-gray-400 mb-1">Total Cases</p>
@@ -323,14 +343,21 @@
     </div>
     <div class="mb-4">
       <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
-      <select id="edit-case-type" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+      <select id="edit-case-type" onchange="onEditCaseTypeChange()" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
         <option value="Life">Life</option>
         <option value="A&amp;H">Accident &amp; Hospital (A&amp;H)</option>
         <option value="Investment">Investment</option>
       </select>
     </div>
+    <div id="edit-inv-premium-type-wrap" class="mb-3 hidden">
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Premium Type</label>
+      <div class="flex gap-2">
+        <button id="edit-btn-rp" onclick="setEditInvPremiumType('RP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">Regular (RP)</button>
+        <button id="edit-btn-sp" onclick="setEditInvPremiumType('SP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">Single (SP)</button>
+      </div>
+    </div>
     <div class="mb-6">
-      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
+      <label id="edit-premium-label" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
       <div class="relative">
         <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
         <input id="edit-premium" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
@@ -604,14 +631,87 @@ function clearUnsubs() {
 // ══════════════════════════════════════════════════════════════
 //  TAB: LOG CASES
 // ══════════════════════════════════════════════════════════════
+let invPremiumType = 'RP'; // RP or SP
+
+function onCaseTypeChange() {
+  const type = document.getElementById('inp-case-type').value;
+  const wrap = document.getElementById('inv-premium-type-wrap');
+  const spInfo = document.getElementById('sp-calc-info');
+  const label = document.getElementById('premium-label');
+  if (type === 'Investment') {
+    wrap.classList.remove('hidden');
+    updatePremiumLabel();
+  } else {
+    wrap.classList.add('hidden');
+    spInfo.classList.add('hidden');
+    label.textContent = 'Annual Premium (SGD)';
+  }
+}
+
+function setInvPremiumType(t) {
+  invPremiumType = t;
+  const rpBtn = document.getElementById('btn-rp');
+  const spBtn = document.getElementById('btn-sp');
+  const active = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactive = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  Object.assign(rpBtn.style, t === 'RP' ? active : inactive);
+  Object.assign(spBtn.style, t === 'SP' ? active : inactive);
+  updatePremiumLabel();
+}
+
+function updatePremiumLabel() {
+  const label = document.getElementById('premium-label');
+  const spInfo = document.getElementById('sp-calc-info');
+  if (invPremiumType === 'SP') {
+    label.textContent = 'Lump Sum Amount (SGD)';
+    spInfo.classList.remove('hidden');
+    updateSpCalc();
+  } else {
+    label.textContent = 'Annual Premium (SGD)';
+    spInfo.classList.add('hidden');
+  }
+}
+
+function updateSpCalc() {
+  const raw = parseFloat(document.getElementById('inp-premium').value) || 0;
+  const counted = Math.round(raw * 0.1);
+  document.getElementById('sp-lump-sum').textContent = fmtCurrency(raw);
+  document.getElementById('sp-counted').textContent = fmtCurrency(counted);
+}
+
+// Listen to premium input for live SP calc
+document.getElementById('inp-premium').addEventListener('input', () => {
+  if (document.getElementById('inp-case-type').value === 'Investment' && invPremiumType === 'SP') {
+    updateSpCalc();
+  }
+});
+
 function addToQueue() {
   const type = document.getElementById('inp-case-type').value;
-  const prem = parseFloat(document.getElementById('inp-premium').value);
-  if (!type)             { alert('Please select a case type.'); return; }
-  if (!prem || prem <= 0){ alert('Please enter a valid premium amount.'); return; }
-  caseQueue.push({ id: Date.now(), type, prem });
+  const rawPrem = parseFloat(document.getElementById('inp-premium').value);
+  if (!type)                { alert('Please select a case type.'); return; }
+  if (!rawPrem || rawPrem <= 0){ alert('Please enter a valid premium amount.'); return; }
+
+  let premType = null;
+  let prem = rawPrem;
+  let lumpSum = null;
+
+  if (type === 'Investment') {
+    premType = invPremiumType;
+    if (invPremiumType === 'SP') {
+      lumpSum = rawPrem;
+      prem = Math.round(rawPrem * 0.1); // 10% for leaderboard
+    }
+  }
+
+  caseQueue.push({ id: Date.now(), type, prem, premType, lumpSum });
   document.getElementById('inp-case-type').value = '';
   document.getElementById('inp-premium').value   = '';
+  document.getElementById('inv-premium-type-wrap').classList.add('hidden');
+  document.getElementById('sp-calc-info').classList.add('hidden');
+  document.getElementById('premium-label').textContent = 'Annual Premium (SGD)';
+  invPremiumType = 'RP';
+  setInvPremiumType('RP');
   renderQueue();
 }
 
@@ -627,19 +727,26 @@ function renderQueue() {
   if (caseQueue.length === 0) { wrap.classList.add('hidden'); return; }
   wrap.classList.remove('hidden');
   badge.textContent = `${caseQueue.length} case${caseQueue.length > 1 ? 's' : ''}`;
-  list.innerHTML = caseQueue.map(c => `
-    <div class="slide-in flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
-      <div class="flex items-center gap-2">
-        <span class="${pillClass(c.type)}">${c.type}</span>
-        <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.prem)}</span>
+  list.innerHTML = caseQueue.map(c => {
+    const spLabel = c.premType === 'SP' ? `<span class="text-xs text-purple-600 font-medium">SP · Lump: ${fmtCurrency(c.lumpSum)} → 10%: ${fmtCurrency(c.prem)}</span>` : '';
+    const rpLabel = c.premType === 'RP' ? '<span class="text-xs text-blue-600 font-medium">RP</span>' : '';
+    return `
+    <div class="slide-in bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="${pillClass(c.type)}">${c.type}</span>
+          ${rpLabel}
+          <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.prem)}</span>
+        </div>
+        <button onclick="removeFromQueue(${c.id})" class="text-gray-300 hover:text-red-400 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
-      <button onclick="removeFromQueue(${c.id})" class="text-gray-300 hover:text-red-400 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-  `).join('');
+      ${spLabel ? `<div class="mt-1">${spLabel}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 async function submitQueue() {
@@ -654,7 +761,7 @@ async function submitQueue() {
     const batch = db.batch();
     caseQueue.forEach(c => {
       const ref = db.collection('cases').doc();
-      batch.set(ref, {
+      const caseData = {
         agentIAC:   currentUser.iac,
         agentName:  currentUser.name,
         caseType:   c.type,
@@ -662,7 +769,10 @@ async function submitQueue() {
         date:       today,
         month:      month,
         submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      if (c.premType) caseData.premType = c.premType;
+      if (c.lumpSum)  caseData.lumpSum = c.lumpSum;
+      batch.set(ref, caseData);
     });
     await batch.commit();
     caseQueue = [];
@@ -680,74 +790,133 @@ async function submitQueue() {
 
 let editingCase = null; // Track which case is being edited
 
+function renderCaseItem(c) {
+  const timeStr = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
+  const edited = c.editHistory && c.editHistory.length > 0;
+  const lastEdit = edited ? c.editHistory[c.editHistory.length - 1] : null;
+  const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
+  const spInfo = c.premType === 'SP' && c.lumpSum ? `<span class="text-xs text-purple-600 font-medium">SP · Lump: ${fmtCurrency(c.lumpSum)}</span>` : '';
+  const rpInfo = c.premType === 'RP' ? '<span class="text-xs text-blue-600 font-medium">RP</span>' : '';
+  return `
+  <div class="slide-in bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="${pillClass(c.caseType)}">${c.caseType}</span>
+        ${rpInfo}
+        <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-gray-300 hover:text-blue-400 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="mt-1.5">
+      <span class="text-xs text-gray-400">${timeStr}</span>
+      ${spInfo ? `<div class="mt-0.5">${spInfo}</div>` : ''}
+      ${edited ? `<div class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderCaseList(snap, el, emptyMsg) {
+  if (snap.empty) {
+    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-6">${emptyMsg}</div>`;
+    return;
+  }
+  const items = [];
+  snap.forEach(d => items.push({ ...normalizeCase(d.data()), docId: d.id }));
+  items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+  el.innerHTML = items.map(renderCaseItem).join('');
+}
+
 function loadLogTab() {
   if (!db) return;
-  const q = db.collection('cases')
+  // Today's cases
+  const todayQ = db.collection('cases')
     .where('agentIAC', '==', currentUser.iac)
     .where('date', '==', todayStr());
-  const unsub = q.onSnapshot(snap => {
-    const el = document.getElementById('today-list');
-    if (snap.empty) {
-      el.innerHTML = '<div class="text-center text-gray-400 text-sm py-6">No cases submitted today</div>';
-      return;
-    }
-    const items = [];
-    snap.forEach(d => items.push({ ...normalizeCase(d.data()), docId: d.id }));
-    items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
-    el.innerHTML = items.map(c => {
-      const timeStr = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
-      const edited = c.editHistory && c.editHistory.length > 0;
-      const lastEdit = edited ? c.editHistory[c.editHistory.length - 1] : null;
-      const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
-      return `
-      <div class="slide-in bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="${pillClass(c.caseType)}">${c.caseType}</span>
-            <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button onclick="openEditModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-gray-300 hover:text-blue-400 transition-colors">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="mt-1.5">
-          <span class="text-xs text-gray-400">${timeStr}</span>
-          ${edited ? `<div class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</div>` : ''}
-        </div>
-      </div>`;
-    }).join('');
+  const unsub1 = todayQ.onSnapshot(snap => {
+    renderCaseList(snap, document.getElementById('today-list'), 'No cases submitted today');
   }, err => console.error('loadLogTab:', err));
-  activeUnsubs.push(unsub);
+  activeUnsubs.push(unsub1);
+
+  // This month's cases (excluding today)
+  const monthQ = db.collection('cases')
+    .where('agentIAC', '==', currentUser.iac)
+    .where('date', '>=', monthStartStr())
+    .where('date', '<', todayStr());
+  const unsub2 = monthQ.onSnapshot(snap => {
+    renderCaseList(snap, document.getElementById('month-list'), 'No other cases this month');
+  }, err => console.error('loadMonthCases:', err));
+  activeUnsubs.push(unsub2);
 }
 
 // ══════════════════════════════════════════════════════════════
 //  TAB: MY STATS
 // ══════════════════════════════════════════════════════════════
+let statsCustomMonth = null;
+
 function setStatsPeriod(p) {
   statsPeriod = p;
-  const wBtn = document.getElementById('stats-btn-week');
-  const mBtn = document.getElementById('stats-btn-month');
-  if (p === 'week') {
-    Object.assign(wBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(mBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  } else {
-    Object.assign(mBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(wBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  }
+  statsCustomMonth = null;
+  document.getElementById('stats-month-picker').value = '';
+  updateStatsButtons();
   clearUnsubs();
   loadStats();
 }
 
+function setStatsMonth(val) {
+  if (!val) return;
+  statsPeriod = 'custom';
+  statsCustomMonth = val;
+  updateStatsButtons();
+  clearUnsubs();
+  loadStats();
+}
+
+function updateStatsButtons() {
+  const wBtn = document.getElementById('stats-btn-week');
+  const mBtn = document.getElementById('stats-btn-month');
+  const label = document.getElementById('stats-period-label');
+  const active = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactive = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  if (statsPeriod === 'week') {
+    Object.assign(wBtn.style, active);
+    Object.assign(mBtn.style, inactive);
+    label.textContent = 'This Week';
+  } else if (statsPeriod === 'month') {
+    Object.assign(mBtn.style, active);
+    Object.assign(wBtn.style, inactive);
+    label.textContent = 'This Month';
+  } else {
+    Object.assign(wBtn.style, inactive);
+    Object.assign(mBtn.style, inactive);
+    const [y, m] = statsCustomMonth.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label.textContent = `${months[parseInt(m)-1]} ${y}`;
+  }
+}
+
 function loadStats() {
   if (!db) return;
-  const start = statsPeriod === 'week' ? weekStartStr() : monthStartStr();
-  const q = db.collection('cases')
+  let startDate, endDate;
+  if (statsPeriod === 'week') {
+    startDate = weekStartStr();
+  } else if (statsPeriod === 'month') {
+    startDate = monthStartStr();
+  } else {
+    const [y, m] = statsCustomMonth.split('-');
+    startDate = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  }
+  let q = db.collection('cases')
     .where('agentIAC', '==', currentUser.iac)
-    .where('date', '>=', start);
+    .where('date', '>=', startDate);
+  if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
     snap.forEach(d => cases.push(normalizeCase(d.data())));
@@ -1222,10 +1391,52 @@ function startAutoSendScheduler() {
 // ══════════════════════════════════════════════════════════════
 //  EDIT/DELETE CASE MODAL
 // ══════════════════════════════════════════════════════════════
+let editInvPremiumType = 'RP';
+
+function onEditCaseTypeChange() {
+  const type = document.getElementById('edit-case-type').value;
+  const wrap = document.getElementById('edit-inv-premium-type-wrap');
+  const label = document.getElementById('edit-premium-label');
+  if (type === 'Investment') {
+    wrap.classList.remove('hidden');
+    label.textContent = editInvPremiumType === 'SP' ? 'Lump Sum Amount (SGD)' : 'Annual Premium (SGD)';
+  } else {
+    wrap.classList.add('hidden');
+    label.textContent = 'Annual Premium (SGD)';
+  }
+}
+
+function setEditInvPremiumType(t) {
+  editInvPremiumType = t;
+  const rpBtn = document.getElementById('edit-btn-rp');
+  const spBtn = document.getElementById('edit-btn-sp');
+  const active = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactive = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  Object.assign(rpBtn.style, t === 'RP' ? active : inactive);
+  Object.assign(spBtn.style, t === 'SP' ? active : inactive);
+  document.getElementById('edit-premium-label').textContent = t === 'SP' ? 'Lump Sum Amount (SGD)' : 'Annual Premium (SGD)';
+}
+
 function openEditModal(caseData) {
   editingCase = caseData;
   document.getElementById('edit-case-type').value = caseData.caseType;
-  document.getElementById('edit-premium').value = caseData.premium;
+
+  // Handle SP/RP for Investment
+  const invWrap = document.getElementById('edit-inv-premium-type-wrap');
+  if (caseData.caseType === 'Investment') {
+    invWrap.classList.remove('hidden');
+    editInvPremiumType = caseData.premType || 'RP';
+    setEditInvPremiumType(editInvPremiumType);
+    if (caseData.premType === 'SP' && caseData.lumpSum) {
+      document.getElementById('edit-premium').value = caseData.lumpSum;
+    } else {
+      document.getElementById('edit-premium').value = caseData.premium;
+    }
+  } else {
+    invWrap.classList.add('hidden');
+    document.getElementById('edit-premium-label').textContent = 'Annual Premium (SGD)';
+    document.getElementById('edit-premium').value = caseData.premium;
+  }
 
   // Show edit history if exists
   const historyWrap = document.getElementById('edit-history');
@@ -1252,18 +1463,34 @@ function openEditModal(caseData) {
 
 function closeEditModal() {
   editingCase = null;
+  editInvPremiumType = 'RP';
+  document.getElementById('edit-inv-premium-type-wrap').classList.add('hidden');
+  document.getElementById('edit-premium-label').textContent = 'Annual Premium (SGD)';
   document.getElementById('edit-modal').classList.add('hidden');
 }
 
 async function saveEditCase() {
   if (!editingCase) return;
   const newType = document.getElementById('edit-case-type').value;
-  const newPrem = parseFloat(document.getElementById('edit-premium').value);
+  const rawPrem = parseFloat(document.getElementById('edit-premium').value);
   if (!newType) { alert('Please select a case type.'); return; }
-  if (!newPrem || newPrem <= 0) { alert('Please enter a valid premium amount.'); return; }
+  if (!rawPrem || rawPrem <= 0) { alert('Please enter a valid premium amount.'); return; }
+
+  let newPrem = rawPrem;
+  let newPremType = null;
+  let newLumpSum = null;
+
+  if (newType === 'Investment') {
+    newPremType = editInvPremiumType;
+    if (editInvPremiumType === 'SP') {
+      newLumpSum = rawPrem;
+      newPrem = Math.round(rawPrem * 0.1);
+    }
+  }
 
   // Skip if nothing changed
-  if (newType === editingCase.caseType && newPrem === editingCase.premium) {
+  if (newType === editingCase.caseType && newPrem === editingCase.premium &&
+      newPremType === (editingCase.premType || null)) {
     closeEditModal();
     return;
   }
@@ -1278,12 +1505,20 @@ async function saveEditCase() {
     newPremium: newPrem
   };
 
+  const updateData = {
+    caseType: newType,
+    premium: newPrem,
+    editHistory: firebase.firestore.FieldValue.arrayUnion(editEntry)
+  };
+  if (newPremType) updateData.premType = newPremType;
+  if (newLumpSum)  updateData.lumpSum = newLumpSum;
+  if (newType !== 'Investment') {
+    updateData.premType = firebase.firestore.FieldValue.delete();
+    updateData.lumpSum = firebase.firestore.FieldValue.delete();
+  }
+
   try {
-    await db.collection('cases').doc(editingCase.docId).update({
-      caseType: newType,
-      premium: newPrem,
-      editHistory: firebase.firestore.FieldValue.arrayUnion(editEntry)
-    });
+    await db.collection('cases').doc(editingCase.docId).update(updateData);
     closeEditModal();
   } catch(e) {
     console.error('Update error:', e);
