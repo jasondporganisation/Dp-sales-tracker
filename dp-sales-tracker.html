@@ -437,6 +437,8 @@ const WHATSAPP_NUMBER = '6586495495'; // +65 8649 5495
 const TELEGRAM_BOT_TOKEN = ''; // e.g. '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
 const TELEGRAM_CHAT_ID   = ''; // e.g. '-1001234567890' (group) or '123456789' (user)
 const AUTO_SEND_TIME     = '21:45'; // 9:45 PM SGT — auto-send report to Telegram
+const CUTOFF_HOUR        = 21;
+const CUTOFF_MINUTE      = 45;
 
 // ══════════════════════════════════════════════════════════════
 //  APP STATE
@@ -749,15 +751,35 @@ function renderQueue() {
   }).join('');
 }
 
+function isAfterCutoff() {
+  const now = new Date();
+  const sgNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+  return sgNow.getHours() > CUTOFF_HOUR || (sgNow.getHours() === CUTOFF_HOUR && sgNow.getMinutes() >= CUTOFF_MINUTE);
+}
+
+function tomorrowStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 async function submitQueue() {
   if (!db)                { alert('Firebase not configured. Please complete setup first.'); return; }
   if (caseQueue.length === 0) return;
   const btn = document.querySelector('#tab-log button[onclick="submitQueue()"]');
+  const late = isAfterCutoff();
+
+  if (late && !confirm('It is past the 9:45 PM cut-off.\n\nYour cases will be logged under TOMORROW\'s date and flagged as late submissions from today.\n\nProceed?')) {
+    return;
+  }
+
   try {
     if (btn) { btn.textContent = 'Submitting...'; btn.disabled = true; }
-    const today = todayStr();
+    const assignedDate = late ? tomorrowStr() : todayStr();
     const now   = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const assignedMonth = late
+      ? (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })()
+      : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     const batch = db.batch();
     caseQueue.forEach(c => {
       const ref = db.collection('cases').doc();
@@ -766,15 +788,24 @@ async function submitQueue() {
         agentName:  currentUser.name,
         caseType:   c.type,
         premium:    c.prem,
-        date:       today,
-        month:      month,
+        date:       assignedDate,
+        month:      assignedMonth,
         submittedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       if (c.premType) caseData.premType = c.premType;
       if (c.lumpSum)  caseData.lumpSum = c.lumpSum;
+      if (late) {
+        caseData.lateSubmission = true;
+        caseData.originalDate = todayStr();
+      }
       batch.set(ref, caseData);
     });
     await batch.commit();
+
+    if (late) {
+      alert('Cases submitted as late entries for tomorrow (' + fmtDate(assignedDate) + ').');
+    }
+
     caseQueue = [];
     renderQueue();
   } catch(e) {
@@ -797,8 +828,9 @@ function renderCaseItem(c) {
   const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
   const spInfo = c.premType === 'SP' && c.lumpSum ? `<span class="text-xs text-purple-600 font-medium">SP · Lump: ${fmtCurrency(c.lumpSum)}</span>` : '';
   const rpInfo = c.premType === 'RP' ? '<span class="text-xs text-blue-600 font-medium">RP</span>' : '';
+  const lateInfo = c.lateSubmission ? `<span class="text-xs text-red-500 font-medium">Late from ${fmtDate(c.originalDate)}</span>` : '';
   return `
-  <div class="slide-in bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
+  <div class="slide-in bg-white rounded-xl px-4 py-3 border ${c.lateSubmission ? 'border-red-200 bg-red-50' : 'border-gray-100'} shadow-sm">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="${pillClass(c.caseType)}">${c.caseType}</span>
@@ -815,6 +847,7 @@ function renderCaseItem(c) {
     </div>
     <div class="mt-1.5">
       <span class="text-xs text-gray-400">${timeStr}</span>
+      ${lateInfo ? `<div class="mt-0.5">${lateInfo}</div>` : ''}
       ${spInfo ? `<div class="mt-0.5">${spInfo}</div>` : ''}
       ${edited ? `<div class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</div>` : ''}
     </div>
@@ -1203,9 +1236,11 @@ function renderDashboard(cases) {
             <div class="flex items-center gap-1.5">
               <span class="${pillClass(c.caseType)}" style="font-size:10px; padding:1px 6px;">${c.caseType}</span>
               <span class="text-xs font-semibold text-gray-700">${fmtCurrency(c.premium)}</span>
+              ${c.lateSubmission ? `<span class="text-xs text-red-500 font-medium">Late</span>` : ''}
             </div>
             <span class="text-xs text-gray-400">${time}</span>
           </div>
+          ${c.lateSubmission ? `<p class="text-xs text-red-400 mt-0.5">Late from ${fmtDate(c.originalDate)}</p>` : ''}
           ${edited ? `<p class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</p>` : ''}
         </div>`;
       }).join('');
