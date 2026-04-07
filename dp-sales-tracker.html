@@ -1389,6 +1389,55 @@ function startAutoSendScheduler() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  AMENDMENT NOTIFICATION
+// ══════════════════════════════════════════════════════════════
+async function sendAmendmentNotification(action, caseData, changes) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return; // Skip if Telegram not configured
+
+  const dateStr = caseData.date || todayStr();
+  const [y, m, d] = dateStr.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateLabel = `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+
+  // Fetch updated totals for that date
+  try {
+    const snap = await db.collection('cases').where('date', '==', dateStr).get();
+    const cases = [];
+    snap.forEach(doc => cases.push(normalizeCase(doc.data())));
+
+    const total = cases.length;
+    const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
+    const TYPES = ['Life', 'A&H', 'Investment'];
+    const byType = {};
+    TYPES.forEach(t => { byType[t] = { cases: 0, premium: 0 }; });
+    cases.forEach(c => { if (byType[c.caseType]) { byType[c.caseType].cases++; byType[c.caseType].premium += c.premium; } });
+
+    let t = '';
+    t += `📝 *AMENDMENT — ${dateLabel}*\n`;
+    t += `━━━━━━━━━━━━━━━━━━\n`;
+    if (action === 'edit') {
+      t += `✏️ *${currentUser.name}* edited a case\n`;
+      t += `${changes}\n\n`;
+    } else {
+      t += `🗑️ *${currentUser.name}* deleted a case\n`;
+      t += `${changes}\n\n`;
+    }
+    t += `📈 *UPDATED TOTALS for ${dateLabel}*\n`;
+    t += `━━━━━━━━━━━━━━━━━━\n`;
+    t += `Cases: *${total}*   Premium: *${fmtCurrency(totalPrem)}*\n\n`;
+    TYPES.forEach(type => {
+      const icon = type === 'Life' ? '🔵' : type === 'A&H' ? '🟢' : '🟣';
+      t += `${icon} ${type}: ${byType[type].cases} case${byType[type].cases !== 1 ? 's' : ''} | ${fmtCurrency(byType[type].premium)}\n`;
+    });
+    t += `\n_DP Sales Tracker · Amendment · ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}_`;
+
+    await sendTelegramMessage(t);
+  } catch(e) {
+    console.error('Amendment notification error:', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 //  EDIT/DELETE CASE MODAL
 // ══════════════════════════════════════════════════════════════
 let editInvPremiumType = 'RP';
@@ -1518,7 +1567,19 @@ async function saveEditCase() {
   }
 
   try {
+    const caseDate = editingCase.date;
+    const oldType = editingCase.caseType;
+    const oldPrem = editingCase.premium;
+    const agentName = editingCase.agentName;
     await db.collection('cases').doc(editingCase.docId).update(updateData);
+
+    // Build change description for amendment
+    const changeParts = [];
+    if (oldType !== newType) changeParts.push(`Type: ${oldType} → ${newType}`);
+    if (oldPrem !== newPrem) changeParts.push(`Premium: ${fmtCurrency(oldPrem)} → ${fmtCurrency(newPrem)}`);
+    const changeDesc = `Agent: *${agentName}*\n${changeParts.join('\n')}`;
+    sendAmendmentNotification('edit', { date: caseDate }, changeDesc);
+
     closeEditModal();
   } catch(e) {
     console.error('Update error:', e);
@@ -1531,7 +1592,15 @@ async function deleteCase() {
   if (!confirm('Are you sure you want to delete this case? This action cannot be undone.')) return;
 
   try {
+    const caseDate = editingCase.date;
+    const agentName = editingCase.agentName;
+    const caseType = editingCase.caseType;
+    const premium = editingCase.premium;
     await db.collection('cases').doc(editingCase.docId).delete();
+
+    const changeDesc = `Agent: *${agentName}*\nRemoved: ${caseType} | ${fmtCurrency(premium)}`;
+    sendAmendmentNotification('delete', { date: caseDate }, changeDesc);
+
     closeEditModal();
   } catch(e) {
     console.error('Delete error:', e);
