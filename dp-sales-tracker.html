@@ -316,7 +316,7 @@
       </button>
       <p id="telegram-status" class="text-center text-xs text-gray-400 mt-2"></p>
       <div id="auto-send-info" class="mt-3 bg-blue-50 rounded-xl p-3 border border-blue-100 text-xs text-blue-700">
-        <span class="font-semibold">Auto-send:</span> Report is automatically sent to Telegram daily at 9:45 PM SGT. Page must be open for auto-send to work.
+        <span class="font-semibold">Auto-send:</span> Report is automatically sent to Telegram daily at 9:45 PM SGT via Cloud Function (no browser needed).
       </div>
       <div id="telegram-not-configured" class="mt-3 bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 hidden">
         <span class="font-semibold">Not configured:</span> Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the code to enable auto-send.
@@ -1389,24 +1389,8 @@ async function sendTelegram() {
   }
 }
 
-// ── Auto-send scheduler ──
-let autoSendFired = false;
-function checkAutoSend() {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || !db) return;
-  const now = new Date();
-  const sgTime = now.toLocaleTimeString('en-SG', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' });
-
-  if (sgTime === AUTO_SEND_TIME && !autoSendFired) {
-    autoSendFired = true;
-    console.log('[Auto-send] Triggering Telegram report at', sgTime);
-    sendTelegram();
-  }
-  if (sgTime !== AUTO_SEND_TIME) {
-    autoSendFired = false;
-  }
-}
-
 function startAutoSendScheduler() {
+  // Auto-send is handled by Firebase Cloud Function (no browser needed)
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     document.getElementById('auto-send-info').classList.add('hidden');
     document.getElementById('telegram-not-configured').classList.remove('hidden');
@@ -1414,7 +1398,6 @@ function startAutoSendScheduler() {
   }
   document.getElementById('auto-send-info').classList.remove('hidden');
   document.getElementById('telegram-not-configured').classList.add('hidden');
-  setInterval(checkAutoSend, 30000);
 }
 
 // ══════════════════════════════════════════════════════════════
