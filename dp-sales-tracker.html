@@ -294,6 +294,15 @@
         <p class="font-semibold text-gray-800 mb-3">Agent Breakdown</p>
         <div id="dash-agent-list"></div>
       </div>
+      <!-- Admin: Find & Delete Cases -->
+      <div id="admin-tools" class="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hidden">
+        <p class="font-semibold text-gray-800 mb-3">Admin Tools</p>
+        <div class="flex gap-2 mb-3">
+          <input id="admin-search" type="number" inputmode="decimal" placeholder="Search by premium amount" class="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+          <button onclick="adminSearchCases()" class="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style="background:#1e3a5f;">Search</button>
+        </div>
+        <div id="admin-results"></div>
+      </div>
     </div>
 
     <!-- ── TAB: REPORT ── -->
@@ -874,13 +883,30 @@ function loadLogTab() {
   }, err => console.error('loadLogTab:', err));
   activeUnsubs.push(unsub1);
 
-  // This month's cases (excluding today)
+  // This month's cases (excluding today, including future-dated late submissions)
+  const nextMonthStart = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 2).padStart(2, '0')}-01`;
+  })();
   const monthQ = db.collection('cases')
     .where('agentIAC', '==', currentUser.iac)
     .where('date', '>=', monthStartStr())
-    .where('date', '<', todayStr());
+    .where('date', '<', nextMonthStart);
   const unsub2 = monthQ.onSnapshot(snap => {
-    renderCaseList(snap, document.getElementById('month-list'), 'No other cases this month');
+    // Filter out today's cases (shown separately above)
+    const today = todayStr();
+    const filtered = [];
+    snap.forEach(d => {
+      const data = { ...normalizeCase(d.data()), docId: d.id };
+      if (data.date !== today) filtered.push(data);
+    });
+    const el = document.getElementById('month-list');
+    if (filtered.length === 0) {
+      el.innerHTML = '<div class="text-center text-gray-400 text-sm py-6">No other cases this month</div>';
+    } else {
+      filtered.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+      el.innerHTML = filtered.map(renderCaseItem).join('');
+    }
   }, err => console.error('loadMonthCases:', err));
   activeUnsubs.push(unsub2);
 }
@@ -1182,6 +1208,14 @@ function loadDashboard() {
 }
 
 function renderDashboard(cases) {
+  // Show admin tools for managers/directors
+  const adminEl = document.getElementById('admin-tools');
+  if (currentUser && (currentUser.role === 'manager' || currentUser.role === 'director')) {
+    adminEl.classList.remove('hidden');
+  } else {
+    adminEl.classList.add('hidden');
+  }
+
   const total     = cases.length;
   const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
   document.getElementById('dash-total-cases').textContent = total;
@@ -1617,6 +1651,54 @@ async function deleteCase() {
   } catch(e) {
     console.error('Delete error:', e);
     alert('Error deleting case. Please try again.');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN TOOLS (Manager/Director only)
+// ══════════════════════════════════════════════════════════════
+async function adminSearchCases() {
+  const amount = parseFloat(document.getElementById('admin-search').value);
+  const resultsEl = document.getElementById('admin-results');
+  if (!amount) { resultsEl.innerHTML = '<p class="text-xs text-red-500">Enter a premium amount to search.</p>'; return; }
+
+  resultsEl.innerHTML = '<p class="text-xs text-gray-400">Searching...</p>';
+  try {
+    const snap = await db.collection('cases').where('premium', '==', amount).get();
+    if (snap.empty) {
+      resultsEl.innerHTML = '<p class="text-xs text-gray-400">No cases found with that premium.</p>';
+      return;
+    }
+    const items = [];
+    snap.forEach(d => items.push({ ...d.data(), docId: d.id }));
+    resultsEl.innerHTML = items.map(c => {
+      const time = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
+      return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+        <div>
+          <p class="text-sm font-semibold text-gray-800">${c.agentName} · ${c.caseType} · ${fmtCurrency(c.premium)}</p>
+          <p class="text-xs text-gray-400">${c.date} · ${time}</p>
+        </div>
+        <button onclick="adminDeleteCase('${c.docId}', this)" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 transition-colors">Delete</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('Admin search error:', e);
+    resultsEl.innerHTML = '<p class="text-xs text-red-500">Error searching. Please try again.</p>';
+  }
+}
+
+async function adminDeleteCase(docId, btnEl) {
+  if (!confirm('Are you sure you want to delete this case? This cannot be undone.')) return;
+  try {
+    btnEl.textContent = '...';
+    btnEl.disabled = true;
+    await db.collection('cases').doc(docId).delete();
+    btnEl.closest('div.flex').remove();
+  } catch(e) {
+    console.error('Admin delete error:', e);
+    alert('Error deleting case.');
+    btnEl.textContent = 'Delete';
+    btnEl.disabled = false;
   }
 }
 
