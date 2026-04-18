@@ -10,6 +10,8 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f3f4f6; }
     .slide-in { animation: slideIn 0.15s ease; }
     @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-slide-up { animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px !important; -webkit-appearance: none; appearance: none; }
     input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
@@ -108,7 +110,7 @@
     </div>
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
       <label class="block text-sm font-medium text-gray-700 mb-2">IAC Number</label>
-      <input id="iac-input" type="text" inputmode="numeric" placeholder="Enter your IAC"
+      <input id="iac-input" type="text" inputmode="text" placeholder="Enter your IAC"
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-900 text-lg tracking-widest focus:outline-none focus:ring-2 focus:border-transparent mb-1"
         style="--tw-ring-color: #1e3a5f;" autocomplete="off">
       <p id="login-error" class="text-red-500 text-xs mb-3 hidden"></p>
@@ -116,7 +118,7 @@
         Login
       </button>
     </div>
-    <p class="text-center text-xs text-gray-400 mt-4">Enter your IAC number to login</p>
+    <p class="text-center text-xs text-gray-400 mt-4">Director: use login ID <strong>DIRECTOR</strong></p>
   </div>
 </div>
 
@@ -157,20 +159,31 @@
         <h3 class="font-semibold text-gray-800 mb-4 text-base">Add a Case</h3>
         <div class="mb-3">
           <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
-          <select id="inp-case-type" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+          <select id="inp-case-type" onchange="onCaseTypeChange()" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
             <option value="">Select type...</option>
             <option value="Life">Life</option>
-            <option value="A&H">Accident &amp; Hospital (A&amp;H)</option>
+            <option value="A&amp;H">Accident &amp; Hospital (A&amp;H)</option>
             <option value="Investment">Investment</option>
           </select>
         </div>
+        <div id="inv-premium-type-wrap" class="mb-3 hidden">
+          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Premium Type</label>
+          <div class="flex gap-2">
+            <button id="btn-rp" onclick="setInvPremiumType('RP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">Regular (RP)</button>
+            <button id="btn-sp" onclick="setInvPremiumType('SP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">Single (SP)</button>
+          </div>
+        </div>
         <div class="mb-4">
-          <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
+          <label id="premium-label" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
           <div class="relative">
             <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
             <input id="inp-premium" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
               class="w-full pl-8 pr-4 py-3.5 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2"
               style="--tw-ring-color:#1e3a5f;">
+          </div>
+          <div id="sp-calc-info" class="hidden mt-2 bg-purple-50 rounded-lg px-3 py-2 border border-purple-100">
+            <p class="text-xs text-purple-700">Lump sum: <span id="sp-lump-sum" class="font-semibold">SGD 0</span></p>
+            <p class="text-xs text-purple-600 mt-0.5">10% counted for leaderboard: <span id="sp-counted" class="font-bold">SGD 0</span></p>
           </div>
         </div>
         <button onclick="addToQueue()" class="w-full py-3.5 rounded-xl text-white font-semibold text-base flex items-center justify-center gap-2 transition-opacity active:opacity-80" style="background:#2563eb;">
@@ -193,20 +206,29 @@
       </div>
 
       <!-- Today's cases -->
-      <div>
+      <div class="mb-4">
         <p class="font-semibold text-gray-800 mb-2 px-1">Today's Submitted Cases</p>
         <div id="today-list">
           <div class="text-center text-gray-400 text-sm py-6">No cases submitted today</div>
+        </div>
+      </div>
+      <!-- This month's cases -->
+      <div>
+        <p class="font-semibold text-gray-800 mb-2 px-1">This Month's Cases</p>
+        <div id="month-list">
+          <div class="text-center text-gray-400 text-sm py-6">No cases this month</div>
         </div>
       </div>
     </div>
 
     <!-- ── TAB: MY STATS ── -->
     <div id="tab-stats" class="tab-content px-4 pt-5">
-      <div class="flex gap-2 mb-4">
-        <button id="stats-btn-week" onclick="setStatsPeriod('week')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
-        <button id="stats-btn-month" onclick="setStatsPeriod('month')" class="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+      <div class="flex gap-2 mb-2 items-center">
+        <button id="stats-btn-week" onclick="setStatsPeriod('week')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">This Week</button>
+        <button id="stats-btn-month" onclick="setStatsPeriod('month')" class="px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">This Month</button>
+        <input id="stats-month-picker" type="month" class="flex-1 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 border-gray-200 text-gray-700 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setStatsMonth(this.value)">
       </div>
+      <p id="stats-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">This Week</p>
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <p class="text-xs text-gray-400 mb-1">Total Cases</p>
@@ -243,11 +265,23 @@
     <!-- ── TAB: DASHBOARD ── -->
     <div id="tab-dashboard" class="tab-content px-4 pt-5">
       <!-- Period selector -->
-      <div class="flex gap-2 mb-4">
+      <div class="flex gap-2 mb-2 items-center">
         <button id="dash-btn-today" onclick="setDashPeriod('today')" class="px-3 py-2 rounded-xl text-xs font-semibold transition-all" style="background:#1e3a5f; color:white;">Today</button>
         <button id="dash-btn-week" onclick="setDashPeriod('week')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 transition-all">This Week</button>
         <button id="dash-btn-month" onclick="setDashPeriod('month')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 transition-all">This Month</button>
+        <input id="dash-month-picker" type="month" class="flex-1 px-2 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setDashMonth(this.value)">
       </div>
+      <p id="dash-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Today</p>
+      <!-- Error / loading banner -->
+      <div id="dash-error-banner" class="hidden mb-3 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+        <span class="text-red-500 text-base mt-0.5">⚠️</span>
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-red-700">Unable to load data</p>
+          <p class="text-xs text-red-600 mt-0.5">Firestore security rules may have expired (30-day test mode limit). Go to <strong>Firebase Console → Firestore Database → Rules</strong> and update the expiry date or set <code>allow read, write: if true;</code></p>
+          <button onclick="clearUnsubs(); loadDashboard();" class="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style="background:#dc2626;">Retry</button>
+        </div>
+      </div>
+      <div id="dash-loading" class="hidden mb-3 text-center text-xs text-gray-400 py-2">Loading...</div>
       <!-- Summary row -->
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
@@ -270,6 +304,15 @@
         <p class="font-semibold text-gray-800 mb-3">Agent Breakdown</p>
         <div id="dash-agent-list"></div>
       </div>
+      <!-- Admin: Find & Delete Cases -->
+      <div id="admin-tools" class="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hidden">
+        <p class="font-semibold text-gray-800 mb-3">Admin Tools</p>
+        <div class="flex gap-2 mb-3">
+          <input id="admin-search" type="number" inputmode="decimal" placeholder="Search by premium amount" class="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+          <button onclick="adminSearchCases()" class="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style="background:#1e3a5f;">Search</button>
+        </div>
+        <div id="admin-results"></div>
+      </div>
     </div>
 
     <!-- ── TAB: REPORT ── -->
@@ -277,8 +320,8 @@
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
         <div class="flex items-start justify-between mb-1">
           <div>
-            <p class="font-semibold text-gray-800">Daily WhatsApp Report</p>
-            <p class="text-xs text-gray-400 mt-0.5">Cut-off: 9:45 PM · Recipient: +65 8649 5495</p>
+            <p class="font-semibold text-gray-800">Daily Telegram Report</p>
+            <p class="text-xs text-gray-400 mt-0.5">Cut-off: 9:45 PM · Auto-sends daily</p>
           </div>
           <button onclick="refreshReport()" class="text-xs text-blue-500 font-medium py-1 px-2 rounded-lg border border-blue-100 bg-blue-50 flex-shrink-0">Refresh</button>
         </div>
@@ -286,23 +329,78 @@
           Tap Refresh to generate today's report...
         </div>
       </div>
-      <button onclick="sendWhatsApp()" class="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-3 shadow-lg transition-opacity active:opacity-80" style="background:#25D366;">
-        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        Open WhatsApp to Send
-      </button>
-      <p class="text-center text-xs text-gray-400 mt-3">This opens WhatsApp Web with the report pre-filled. Just tap Send.</p>
-      <button onclick="sendTelegram()" class="w-full mt-3 py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-3 shadow-lg transition-opacity active:opacity-80" style="background:#0088cc;">
+      <button onclick="sendTelegram()" class="w-full py-4 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-3 shadow-lg transition-opacity active:opacity-80" style="background:#0088cc;">
         <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-        Send to Telegram
+        Send to Telegram Now
       </button>
       <p id="telegram-status" class="text-center text-xs text-gray-400 mt-2"></p>
-      <div id="auto-send-info" class="mt-3 bg-blue-50 rounded-xl p-3 border border-blue-100 text-xs text-blue-700 hidden">
-        <span class="font-semibold">Auto-send enabled:</span> Report will be sent to Telegram daily at 9:45 PM SGT (page must be open).
+      <div id="auto-send-info" class="mt-3 bg-blue-50 rounded-xl p-3 border border-blue-100 text-xs text-blue-700">
+        <span class="font-semibold">Auto-send:</span> Report is automatically sent to Telegram daily at 9:45 PM SGT via Cloud Function (no browser needed).
+      </div>
+      <div id="telegram-not-configured" class="mt-3 bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs text-amber-700 hidden">
+        <span class="font-semibold">Not configured:</span> Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the code to enable auto-send.
       </div>
     </div>
 
   </div>
 </div><!-- end app-view -->
+
+<!-- ═══════════════════════════════════════
+     EDIT CASE MODAL
+═══════════════════════════════════════ -->
+<div id="edit-modal" class="hidden fixed inset-0 z-50 flex items-end bg-black bg-opacity-40" onclick="if(event.target === this) closeEditModal()">
+  <div class="w-full bg-white rounded-t-3xl p-6 animate-slide-up">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-bold text-gray-900 text-lg">Edit Case</h3>
+      <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
+      <select id="edit-case-type" onchange="onEditCaseTypeChange()" class="w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-base focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;">
+        <option value="Life">Life</option>
+        <option value="A&amp;H">Accident &amp; Hospital (A&amp;H)</option>
+        <option value="Investment">Investment</option>
+      </select>
+    </div>
+    <div id="edit-inv-premium-type-wrap" class="mb-3 hidden">
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Premium Type</label>
+      <div class="flex gap-2">
+        <button id="edit-btn-rp" onclick="setEditInvPremiumType('RP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="background:#1e3a5f; color:white; border-color:#1e3a5f;">Regular (RP)</button>
+        <button id="edit-btn-sp" onclick="setEditInvPremiumType('SP')" class="flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all" style="border-color:#e5e7eb; color:#6b7280;">Single (SP)</button>
+      </div>
+    </div>
+    <div class="mb-6">
+      <label id="edit-premium-label" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Annual Premium (SGD)</label>
+      <div class="relative">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">$</span>
+        <input id="edit-premium" type="number" inputmode="decimal" min="0" step="any" placeholder="0"
+          class="w-full pl-8 pr-4 py-3.5 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2"
+          style="--tw-ring-color:#1e3a5f;">
+      </div>
+    </div>
+    <div id="edit-history" class="hidden mb-4">
+      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Edit History</p>
+      <div id="edit-history-list" class="space-y-1 max-h-32 overflow-y-auto"></div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="saveEditCase()" class="flex-1 py-3.5 rounded-xl text-white font-semibold text-base transition-opacity active:opacity-80" style="background:#16a34a;">
+        Save Changes
+      </button>
+      <button onclick="deleteCase()" class="py-3.5 px-4 rounded-xl text-red-600 font-semibold text-base border-2 border-red-200 bg-red-50 transition-opacity active:opacity-80">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </button>
+    </div>
+    <button onclick="closeEditModal()" class="w-full mt-3 py-3 rounded-xl text-gray-600 font-semibold text-base border border-gray-200 transition-opacity active:opacity-80">
+      Cancel
+    </button>
+  </div>
+</div>
 
 <!-- ─── Firebase SDK ─────────────────────── -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
@@ -353,9 +451,11 @@ const WHATSAPP_NUMBER = '6586495495'; // +65 8649 5495
 // 1. Message @BotFather on Telegram → /newbot → copy the token
 // 2. Add the bot to your group → send a message → visit:
 //    https://api.telegram.org/bot<TOKEN>/getUpdates  to find the chat ID
-const TELEGRAM_BOT_TOKEN = ''; // e.g. '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11'
-const TELEGRAM_CHAT_ID   = ''; // e.g. '-1001234567890' (group) or '123456789' (user)
+const TELEGRAM_BOT_TOKEN = '8203283822:AAHq7_6JJnQM-laRAMxZSjHvLgsjJvxULM4';
+const TELEGRAM_CHAT_ID   = '1781759875';
 const AUTO_SEND_TIME     = '21:45'; // 9:45 PM SGT — auto-send report to Telegram
+const CUTOFF_HOUR        = 21;
+const CUTOFF_MINUTE      = 45;
 
 // ══════════════════════════════════════════════════════════════
 //  APP STATE
@@ -435,6 +535,11 @@ function normalizeCase(raw) {
 }
 function fmtCurrency(n) {
   return 'SGD ' + Math.round(n).toLocaleString('en-SG');
+}
+function fmtTimestamp(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts.seconds * 1000);
+  return d.toLocaleString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' });
 }
 function pillClass(type) {
   if (type === 'Life')       return 'pill pill-life';
@@ -545,14 +650,87 @@ function clearUnsubs() {
 // ══════════════════════════════════════════════════════════════
 //  TAB: LOG CASES
 // ══════════════════════════════════════════════════════════════
+let invPremiumType = 'RP'; // RP or SP
+
+function onCaseTypeChange() {
+  const type = document.getElementById('inp-case-type').value;
+  const wrap = document.getElementById('inv-premium-type-wrap');
+  const spInfo = document.getElementById('sp-calc-info');
+  const label = document.getElementById('premium-label');
+  if (type === 'Investment') {
+    wrap.classList.remove('hidden');
+    updatePremiumLabel();
+  } else {
+    wrap.classList.add('hidden');
+    spInfo.classList.add('hidden');
+    label.textContent = 'Annual Premium (SGD)';
+  }
+}
+
+function setInvPremiumType(t) {
+  invPremiumType = t;
+  const rpBtn = document.getElementById('btn-rp');
+  const spBtn = document.getElementById('btn-sp');
+  const active = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactive = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  Object.assign(rpBtn.style, t === 'RP' ? active : inactive);
+  Object.assign(spBtn.style, t === 'SP' ? active : inactive);
+  updatePremiumLabel();
+}
+
+function updatePremiumLabel() {
+  const label = document.getElementById('premium-label');
+  const spInfo = document.getElementById('sp-calc-info');
+  if (invPremiumType === 'SP') {
+    label.textContent = 'Lump Sum Amount (SGD)';
+    spInfo.classList.remove('hidden');
+    updateSpCalc();
+  } else {
+    label.textContent = 'Annual Premium (SGD)';
+    spInfo.classList.add('hidden');
+  }
+}
+
+function updateSpCalc() {
+  const raw = parseFloat(document.getElementById('inp-premium').value) || 0;
+  const counted = Math.round(raw * 0.1);
+  document.getElementById('sp-lump-sum').textContent = fmtCurrency(raw);
+  document.getElementById('sp-counted').textContent = fmtCurrency(counted);
+}
+
+// Listen to premium input for live SP calc
+document.getElementById('inp-premium').addEventListener('input', () => {
+  if (document.getElementById('inp-case-type').value === 'Investment' && invPremiumType === 'SP') {
+    updateSpCalc();
+  }
+});
+
 function addToQueue() {
   const type = document.getElementById('inp-case-type').value;
-  const prem = parseFloat(document.getElementById('inp-premium').value);
-  if (!type)             { alert('Please select a case type.'); return; }
-  if (!prem || prem <= 0){ alert('Please enter a valid premium amount.'); return; }
-  caseQueue.push({ id: Date.now(), type, prem });
+  const rawPrem = parseFloat(document.getElementById('inp-premium').value);
+  if (!type)                { alert('Please select a case type.'); return; }
+  if (!rawPrem || rawPrem <= 0){ alert('Please enter a valid premium amount.'); return; }
+
+  let premType = null;
+  let prem = rawPrem;
+  let lumpSum = null;
+
+  if (type === 'Investment') {
+    premType = invPremiumType;
+    if (invPremiumType === 'SP') {
+      lumpSum = rawPrem;
+      prem = Math.round(rawPrem * 0.1); // 10% for leaderboard
+    }
+  }
+
+  caseQueue.push({ id: Date.now(), type, prem, premType, lumpSum });
   document.getElementById('inp-case-type').value = '';
   document.getElementById('inp-premium').value   = '';
+  document.getElementById('inv-premium-type-wrap').classList.add('hidden');
+  document.getElementById('sp-calc-info').classList.add('hidden');
+  document.getElementById('premium-label').textContent = 'Annual Premium (SGD)';
+  invPremiumType = 'RP';
+  setInvPremiumType('RP');
   renderQueue();
 }
 
@@ -568,44 +746,83 @@ function renderQueue() {
   if (caseQueue.length === 0) { wrap.classList.add('hidden'); return; }
   wrap.classList.remove('hidden');
   badge.textContent = `${caseQueue.length} case${caseQueue.length > 1 ? 's' : ''}`;
-  list.innerHTML = caseQueue.map(c => `
-    <div class="slide-in flex items-center justify-between bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
-      <div class="flex items-center gap-2">
-        <span class="${pillClass(c.type)}">${c.type}</span>
-        <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.prem)}</span>
+  list.innerHTML = caseQueue.map(c => {
+    const spLabel = c.premType === 'SP' ? `<span class="text-xs text-purple-600 font-medium">SP · Lump: ${fmtCurrency(c.lumpSum)} → 10%: ${fmtCurrency(c.prem)}</span>` : '';
+    const rpLabel = c.premType === 'RP' ? '<span class="text-xs text-blue-600 font-medium">RP</span>' : '';
+    return `
+    <div class="slide-in bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="${pillClass(c.type)}">${c.type}</span>
+          ${rpLabel}
+          <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.prem)}</span>
+        </div>
+        <button onclick="removeFromQueue(${c.id})" class="text-gray-300 hover:text-red-400 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
-      <button onclick="removeFromQueue(${c.id})" class="text-gray-300 hover:text-red-400 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-  `).join('');
+      ${spLabel ? `<div class="mt-1">${spLabel}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function isAfterCutoff() {
+  const now = new Date();
+  const sgNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Singapore' }));
+  return sgNow.getHours() > CUTOFF_HOUR || (sgNow.getHours() === CUTOFF_HOUR && sgNow.getMinutes() >= CUTOFF_MINUTE);
+}
+
+function tomorrowStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 async function submitQueue() {
   if (!db)                { alert('Firebase not configured. Please complete setup first.'); return; }
   if (caseQueue.length === 0) return;
   const btn = document.querySelector('#tab-log button[onclick="submitQueue()"]');
+  const late = isAfterCutoff();
+
+  if (late && !confirm('It is past the 9:45 PM cut-off.\n\nYour cases will be logged under TOMORROW\'s date and flagged as late submissions from today.\n\nProceed?')) {
+    return;
+  }
+
   try {
     if (btn) { btn.textContent = 'Submitting...'; btn.disabled = true; }
-    const today = todayStr();
+    const assignedDate = late ? tomorrowStr() : todayStr();
     const now   = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const assignedMonth = late
+      ? (() => { const d = new Date(); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; })()
+      : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     const batch = db.batch();
     caseQueue.forEach(c => {
       const ref = db.collection('cases').doc();
-      batch.set(ref, {
+      const caseData = {
         agentIAC:   currentUser.iac,
         agentName:  currentUser.name,
         caseType:   c.type,
         premium:    c.prem,
-        date:       today,
-        month:      month,
+        date:       assignedDate,
+        month:      assignedMonth,
         submittedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      if (c.premType) caseData.premType = c.premType;
+      if (c.lumpSum)  caseData.lumpSum = c.lumpSum;
+      if (late) {
+        caseData.lateSubmission = true;
+        caseData.originalDate = todayStr();
+      }
+      batch.set(ref, caseData);
     });
     await batch.commit();
+
+    if (late) {
+      alert('Cases submitted as late entries for tomorrow (' + fmtDate(assignedDate) + ').');
+    }
+
     caseQueue = [];
     renderQueue();
   } catch(e) {
@@ -619,60 +836,154 @@ async function submitQueue() {
   }
 }
 
+let editingCase = null; // Track which case is being edited
+
+function renderCaseItem(c) {
+  const timeStr = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
+  const edited = c.editHistory && c.editHistory.length > 0;
+  const lastEdit = edited ? c.editHistory[c.editHistory.length - 1] : null;
+  const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
+  const spInfo = c.premType === 'SP' && c.lumpSum ? `<span class="text-xs text-purple-600 font-medium">SP · Lump: ${fmtCurrency(c.lumpSum)}</span>` : '';
+  const rpInfo = c.premType === 'RP' ? '<span class="text-xs text-blue-600 font-medium">RP</span>' : '';
+  const lateInfo = c.lateSubmission ? `<span class="text-xs text-red-500 font-medium">Late from ${fmtDate(c.originalDate)}</span>` : '';
+  return `
+  <div class="slide-in bg-white rounded-xl px-4 py-3 border ${c.lateSubmission ? 'border-red-200 bg-red-50' : 'border-gray-100'} shadow-sm">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="${pillClass(c.caseType)}">${c.caseType}</span>
+        ${rpInfo}
+        <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openEditModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-gray-300 hover:text-blue-400 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="mt-1.5">
+      <span class="text-xs text-gray-400">${timeStr}</span>
+      ${lateInfo ? `<div class="mt-0.5">${lateInfo}</div>` : ''}
+      ${spInfo ? `<div class="mt-0.5">${spInfo}</div>` : ''}
+      ${edited ? `<div class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderCaseList(snap, el, emptyMsg) {
+  if (snap.empty) {
+    el.innerHTML = `<div class="text-center text-gray-400 text-sm py-6">${emptyMsg}</div>`;
+    return;
+  }
+  const items = [];
+  snap.forEach(d => items.push({ ...normalizeCase(d.data()), docId: d.id }));
+  items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+  el.innerHTML = items.map(renderCaseItem).join('');
+}
+
 function loadLogTab() {
   if (!db) return;
-  const q = db.collection('cases')
+  // Today's cases
+  const todayQ = db.collection('cases')
     .where('agentIAC', '==', currentUser.iac)
     .where('date', '==', todayStr());
-  const unsub = q.onSnapshot(snap => {
-    const el = document.getElementById('today-list');
-    if (snap.empty) {
-      el.innerHTML = '<div class="text-center text-gray-400 text-sm py-6">No cases submitted today</div>';
-      return;
-    }
-    const items = [];
-    snap.forEach(d => items.push(normalizeCase(d.data())));
-    items.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
-    el.innerHTML = items.map(c => `
-      <div class="slide-in flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
-        <div class="flex items-center gap-2">
-          <span class="${pillClass(c.caseType)}">${c.caseType}</span>
-          <span class="font-semibold text-gray-800 text-sm">${fmtCurrency(c.premium)}</span>
-        </div>
-        <span class="text-xs text-gray-400 flex items-center gap-1">
-          <svg class="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-          Submitted
-        </span>
-      </div>
-    `).join('');
+  const unsub1 = todayQ.onSnapshot(snap => {
+    renderCaseList(snap, document.getElementById('today-list'), 'No cases submitted today');
   }, err => console.error('loadLogTab:', err));
-  activeUnsubs.push(unsub);
+  activeUnsubs.push(unsub1);
+
+  // This month's cases (excluding today, including future-dated late submissions)
+  const nextMonthStart = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 2).padStart(2, '0')}-01`;
+  })();
+  const monthQ = db.collection('cases')
+    .where('agentIAC', '==', currentUser.iac)
+    .where('date', '>=', monthStartStr())
+    .where('date', '<', nextMonthStart);
+  const unsub2 = monthQ.onSnapshot(snap => {
+    // Filter out today's cases (shown separately above)
+    const today = todayStr();
+    const filtered = [];
+    snap.forEach(d => {
+      const data = { ...normalizeCase(d.data()), docId: d.id };
+      if (data.date !== today) filtered.push(data);
+    });
+    const el = document.getElementById('month-list');
+    if (filtered.length === 0) {
+      el.innerHTML = '<div class="text-center text-gray-400 text-sm py-6">No other cases this month</div>';
+    } else {
+      filtered.sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+      el.innerHTML = filtered.map(renderCaseItem).join('');
+    }
+  }, err => console.error('loadMonthCases:', err));
+  activeUnsubs.push(unsub2);
 }
 
 // ══════════════════════════════════════════════════════════════
 //  TAB: MY STATS
 // ══════════════════════════════════════════════════════════════
+let statsCustomMonth = null;
+
 function setStatsPeriod(p) {
   statsPeriod = p;
-  const wBtn = document.getElementById('stats-btn-week');
-  const mBtn = document.getElementById('stats-btn-month');
-  if (p === 'week') {
-    Object.assign(wBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(mBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  } else {
-    Object.assign(mBtn.style, { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' });
-    Object.assign(wBtn.style, { background: '', color: '#6b7280', borderColor: '#e5e7eb' });
-  }
+  statsCustomMonth = null;
+  document.getElementById('stats-month-picker').value = '';
+  updateStatsButtons();
   clearUnsubs();
   loadStats();
 }
 
+function setStatsMonth(val) {
+  if (!val) return;
+  statsPeriod = 'custom';
+  statsCustomMonth = val;
+  updateStatsButtons();
+  clearUnsubs();
+  loadStats();
+}
+
+function updateStatsButtons() {
+  const wBtn = document.getElementById('stats-btn-week');
+  const mBtn = document.getElementById('stats-btn-month');
+  const label = document.getElementById('stats-period-label');
+  const active = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactive = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  if (statsPeriod === 'week') {
+    Object.assign(wBtn.style, active);
+    Object.assign(mBtn.style, inactive);
+    label.textContent = 'This Week';
+  } else if (statsPeriod === 'month') {
+    Object.assign(mBtn.style, active);
+    Object.assign(wBtn.style, inactive);
+    label.textContent = 'This Month';
+  } else {
+    Object.assign(wBtn.style, inactive);
+    Object.assign(mBtn.style, inactive);
+    const [y, m] = statsCustomMonth.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label.textContent = `${months[parseInt(m)-1]} ${y}`;
+  }
+}
+
 function loadStats() {
   if (!db) return;
-  const start = statsPeriod === 'week' ? weekStartStr() : monthStartStr();
-  const q = db.collection('cases')
+  let startDate, endDate;
+  if (statsPeriod === 'week') {
+    startDate = weekStartStr();
+  } else if (statsPeriod === 'month') {
+    startDate = monthStartStr();
+  } else {
+    const [y, m] = statsCustomMonth.split('-');
+    startDate = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  }
+  let q = db.collection('cases')
     .where('agentIAC', '==', currentUser.iac)
-    .where('date', '>=', start);
+    .where('date', '>=', startDate);
+  if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
     snap.forEach(d => cases.push(normalizeCase(d.data())));
@@ -734,7 +1045,7 @@ function renderStats(cases) {
 //  TAB: LEADERBOARD
 // ══════════════════════════════════════════════════════════════
 let boardPeriod = 'month';
-let boardCustomMonth = null; // e.g. '2026-03'
+let boardCustomMonth = null;
 
 function setBoardPeriod(p) {
   boardPeriod = p;
@@ -785,7 +1096,6 @@ function loadLeaderboard() {
   } else if (boardPeriod === 'month') {
     startDate = monthStartStr();
   } else {
-    // Custom month: query by month field or date range
     const [y, m] = boardCustomMonth.split('-');
     startDate = `${y}-${m}-01`;
     const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
@@ -840,30 +1150,90 @@ function renderLeaderboard(cases) {
 // ══════════════════════════════════════════════════════════════
 //  TAB: DASHBOARD
 // ══════════════════════════════════════════════════════════════
+let dashCustomMonth = null;
+
 function setDashPeriod(p) {
   dashPeriod = p;
-  ['today','week','month'].forEach(x => {
-    const btn = document.getElementById(`dash-btn-${x}`);
-    if (x === p) { Object.assign(btn.style, { background: '#1e3a5f', color: 'white', border: 'none' }); }
-    else         { Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' }); }
-  });
+  dashCustomMonth = null;
+  document.getElementById('dash-month-picker').value = '';
+  updateDashButtons();
   clearUnsubs();
   loadDashboard();
 }
 
+function setDashMonth(val) {
+  if (!val) return;
+  dashPeriod = 'custom';
+  dashCustomMonth = val;
+  updateDashButtons();
+  clearUnsubs();
+  loadDashboard();
+}
+
+function updateDashButtons() {
+  const label = document.getElementById('dash-period-label');
+  ['today','week','month'].forEach(x => {
+    const btn = document.getElementById(`dash-btn-${x}`);
+    if (x === dashPeriod) { Object.assign(btn.style, { background: '#1e3a5f', color: 'white', border: 'none' }); }
+    else                  { Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' }); }
+  });
+  if (dashPeriod === 'today') label.textContent = 'Today';
+  else if (dashPeriod === 'week') label.textContent = 'This Week';
+  else if (dashPeriod === 'month') label.textContent = 'This Month';
+  else {
+    const [y, m] = dashCustomMonth.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label.textContent = `${months[parseInt(m)-1]} ${y}`;
+    // Deactivate preset buttons
+    ['today','week','month'].forEach(x => {
+      const btn = document.getElementById(`dash-btn-${x}`);
+      Object.assign(btn.style, { background: '', color: '#4b5563', border: '1px solid #e5e7eb' });
+    });
+  }
+}
+
 function loadDashboard() {
   if (!db) return;
-  const start = dashPeriod === 'today' ? todayStr() : dashPeriod === 'week' ? weekStartStr() : monthStartStr();
-  const q = db.collection('cases').where('date', '>=', start);
+  document.getElementById('dash-error-banner').classList.add('hidden');
+  document.getElementById('dash-loading').classList.remove('hidden');
+  let startDate, endDate;
+  if (dashPeriod === 'today') {
+    startDate = todayStr();
+  } else if (dashPeriod === 'week') {
+    startDate = weekStartStr();
+  } else if (dashPeriod === 'month') {
+    startDate = monthStartStr();
+  } else {
+    const [y, m] = dashCustomMonth.split('-');
+    startDate = `${y}-${m}-01`;
+    const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+    endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  }
+  let q = db.collection('cases').where('date', '>=', startDate);
+  if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
+    document.getElementById('dash-loading').classList.add('hidden');
+    document.getElementById('dash-error-banner').classList.add('hidden');
     const cases = [];
     snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderDashboard(cases);
-  }, err => console.error('loadDashboard:', err));
+  }, err => {
+    document.getElementById('dash-loading').classList.add('hidden');
+    document.getElementById('dash-error-banner').classList.remove('hidden');
+    console.error('loadDashboard:', err);
+  });
   activeUnsubs.push(unsub);
 }
 
 function renderDashboard(cases) {
+  // Show admin tools for managers/directors
+  const adminEl = document.getElementById('admin-tools');
+  if (currentUser && (currentUser.role === 'manager' || currentUser.role === 'director')) {
+    adminEl.classList.remove('hidden');
+  } else {
+    adminEl.classList.add('hidden');
+  }
+
   const total     = cases.length;
   const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
   document.getElementById('dash-total-cases').textContent = total;
@@ -882,9 +1252,10 @@ function renderDashboard(cases) {
   // Per agent
   const byAgent = {};
   cases.forEach(c => {
-    if (!byAgent[c.agentIAC]) byAgent[c.agentIAC] = { name: c.agentName, cases: 0, premium: 0, byType: {} };
+    if (!byAgent[c.agentIAC]) byAgent[c.agentIAC] = { name: c.agentName, cases: 0, premium: 0, byType: {}, items: [] };
     byAgent[c.agentIAC].cases++;
     byAgent[c.agentIAC].premium += c.premium;
+    byAgent[c.agentIAC].items.push(c);
     if (!byAgent[c.agentIAC].byType[c.caseType]) byAgent[c.agentIAC].byType[c.caseType] = { cases: 0, premium: 0 };
     byAgent[c.agentIAC].byType[c.caseType].cases++;
     byAgent[c.agentIAC].byType[c.caseType].premium += c.premium;
@@ -903,19 +1274,42 @@ function renderDashboard(cases) {
       if (!v || v.cases === 0) return '';
       return `<span class="${pillClass(t)} mr-1 mb-1">${t} ${v.cases} · ${fmtCurrency(v.premium)}</span>`;
     }).join('');
-    return `
-      <div class="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-        <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
-          style="background:#1e3a5f; font-size:10px;">${i+1}</span>
-        <div class="flex-1 min-w-0">
-          <div class="flex items-start justify-between gap-2">
-            <p class="font-semibold text-gray-800 text-sm leading-tight">${d.name}</p>
-            <div class="text-right flex-shrink-0">
-              <p class="text-sm font-bold text-gray-900">${fmtCurrency(d.premium)}</p>
-              <p class="text-xs text-gray-400">${d.cases} case${d.cases !== 1 ? 's' : ''}</p>
+    const caseRows = d.items
+      .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0))
+      .map(c => {
+        const time = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
+        const edited = c.editHistory && c.editHistory.length > 0;
+        const lastEdit = edited ? c.editHistory[c.editHistory.length - 1] : null;
+        const editedAtStr = lastEdit && lastEdit.editedAt ? fmtTimestamp(lastEdit.editedAt) : '';
+        return `<div class="py-1.5 border-b border-gray-50 last:border-0">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="${pillClass(c.caseType)}" style="font-size:10px; padding:1px 6px;">${c.caseType}</span>
+              <span class="text-xs font-semibold text-gray-700">${fmtCurrency(c.premium)}</span>
+              ${c.lateSubmission ? `<span class="text-xs text-red-500 font-medium">Late</span>` : ''}
             </div>
+            <span class="text-xs text-gray-400">${time}</span>
           </div>
-          <div class="flex flex-wrap mt-1.5">${breakdown}</div>
+          ${c.lateSubmission ? `<p class="text-xs text-red-400 mt-0.5">Late from ${fmtDate(c.originalDate)}</p>` : ''}
+          ${edited ? `<p class="text-xs text-amber-500 mt-0.5">Edited at ${editedAtStr}${lastEdit.editedBy ? ' by ' + lastEdit.editedBy : ''}</p>` : ''}
+        </div>`;
+      }).join('');
+    return `
+      <div class="py-3 border-b border-gray-50 last:border-0">
+        <div class="flex items-start gap-3">
+          <span class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
+            style="background:#1e3a5f; font-size:10px;">${i+1}</span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2">
+              <p class="font-semibold text-gray-800 text-sm leading-tight">${d.name}</p>
+              <div class="text-right flex-shrink-0">
+                <p class="text-sm font-bold text-gray-900">${fmtCurrency(d.premium)}</p>
+                <p class="text-xs text-gray-400">${d.cases} case${d.cases !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap mt-1.5">${breakdown}</div>
+            <div class="mt-2 ml-0.5">${caseRows}</div>
+          </div>
         </div>
       </div>`;
   }).join('');
@@ -1003,15 +1397,6 @@ function buildReportText(cases) {
   return t;
 }
 
-function sendWhatsApp() {
-  const text = document.getElementById('report-preview').textContent;
-  if (!text || text.includes('not configured') || text.includes('Generating') || text.includes('Tap Refresh')) {
-    alert('Please tap Refresh to generate the report first.');
-    return;
-  }
-  window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
-}
-
 // ══════════════════════════════════════════════════════════════
 //  TELEGRAM INTEGRATION
 // ══════════════════════════════════════════════════════════════
@@ -1056,29 +1441,283 @@ async function sendTelegram() {
   }
 }
 
-// ── Auto-send scheduler ──
-let autoSendFired = false;
-function checkAutoSend() {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || !db) return;
-  const now = new Date();
-  const sgTime = now.toLocaleTimeString('en-SG', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' });
-  const today = now.toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
-
-  if (sgTime === AUTO_SEND_TIME && !autoSendFired) {
-    autoSendFired = true;
-    console.log('[Auto-send] Triggering Telegram report at', sgTime);
-    sendTelegram();
+function startAutoSendScheduler() {
+  // Auto-send is handled by Firebase Cloud Function (no browser needed)
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    document.getElementById('auto-send-info').classList.add('hidden');
+    document.getElementById('telegram-not-configured').classList.remove('hidden');
+    return;
   }
-  // Reset flag after the minute passes so it can fire again tomorrow
-  if (sgTime !== AUTO_SEND_TIME) {
-    autoSendFired = false;
+  document.getElementById('auto-send-info').classList.remove('hidden');
+  document.getElementById('telegram-not-configured').classList.add('hidden');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AMENDMENT NOTIFICATION
+// ══════════════════════════════════════════════════════════════
+async function sendAmendmentNotification(action, caseData, changes) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return; // Skip if Telegram not configured
+
+  const dateStr = caseData.date || todayStr();
+  const [y, m, d] = dateStr.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateLabel = `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+
+  // Fetch updated totals for that date
+  try {
+    const snap = await db.collection('cases').where('date', '==', dateStr).get();
+    const cases = [];
+    snap.forEach(doc => cases.push(normalizeCase(doc.data())));
+
+    const total = cases.length;
+    const totalPrem = cases.reduce((s, c) => s + c.premium, 0);
+    const TYPES = ['Life', 'A&H', 'Investment'];
+    const byType = {};
+    TYPES.forEach(t => { byType[t] = { cases: 0, premium: 0 }; });
+    cases.forEach(c => { if (byType[c.caseType]) { byType[c.caseType].cases++; byType[c.caseType].premium += c.premium; } });
+
+    let t = '';
+    t += `📝 *AMENDMENT — ${dateLabel}*\n`;
+    t += `━━━━━━━━━━━━━━━━━━\n`;
+    if (action === 'edit') {
+      t += `✏️ *${currentUser.name}* edited a case\n`;
+      t += `${changes}\n\n`;
+    } else {
+      t += `🗑️ *${currentUser.name}* deleted a case\n`;
+      t += `${changes}\n\n`;
+    }
+    t += `📈 *UPDATED TOTALS for ${dateLabel}*\n`;
+    t += `━━━━━━━━━━━━━━━━━━\n`;
+    t += `Cases: *${total}*   Premium: *${fmtCurrency(totalPrem)}*\n\n`;
+    TYPES.forEach(type => {
+      const icon = type === 'Life' ? '🔵' : type === 'A&H' ? '🟢' : '🟣';
+      t += `${icon} ${type}: ${byType[type].cases} case${byType[type].cases !== 1 ? 's' : ''} | ${fmtCurrency(byType[type].premium)}\n`;
+    });
+    t += `\n_DP Sales Tracker · Amendment · ${new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}_`;
+
+    await sendTelegramMessage(t);
+  } catch(e) {
+    console.error('Amendment notification error:', e);
   }
 }
 
-function startAutoSendScheduler() {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
-  document.getElementById('auto-send-info').classList.remove('hidden');
-  setInterval(checkAutoSend, 30000); // check every 30 seconds
+// ══════════════════════════════════════════════════════════════
+//  EDIT/DELETE CASE MODAL
+// ══════════════════════════════════════════════════════════════
+let editInvPremiumType = 'RP';
+
+function onEditCaseTypeChange() {
+  const type = document.getElementById('edit-case-type').value;
+  const wrap = document.getElementById('edit-inv-premium-type-wrap');
+  const label = document.getElementById('edit-premium-label');
+  if (type === 'Investment') {
+    wrap.classList.remove('hidden');
+    label.textContent = editInvPremiumType === 'SP' ? 'Lump Sum Amount (SGD)' : 'Annual Premium (SGD)';
+  } else {
+    wrap.classList.add('hidden');
+    label.textContent = 'Annual Premium (SGD)';
+  }
+}
+
+function setEditInvPremiumType(t) {
+  editInvPremiumType = t;
+  const rpBtn = document.getElementById('edit-btn-rp');
+  const spBtn = document.getElementById('edit-btn-sp');
+  const active = { background: '#1e3a5f', color: 'white', borderColor: '#1e3a5f' };
+  const inactive = { background: '', color: '#6b7280', borderColor: '#e5e7eb' };
+  Object.assign(rpBtn.style, t === 'RP' ? active : inactive);
+  Object.assign(spBtn.style, t === 'SP' ? active : inactive);
+  document.getElementById('edit-premium-label').textContent = t === 'SP' ? 'Lump Sum Amount (SGD)' : 'Annual Premium (SGD)';
+}
+
+function openEditModal(caseData) {
+  editingCase = caseData;
+  document.getElementById('edit-case-type').value = caseData.caseType;
+
+  // Handle SP/RP for Investment
+  const invWrap = document.getElementById('edit-inv-premium-type-wrap');
+  if (caseData.caseType === 'Investment') {
+    invWrap.classList.remove('hidden');
+    editInvPremiumType = caseData.premType || 'RP';
+    setEditInvPremiumType(editInvPremiumType);
+    if (caseData.premType === 'SP' && caseData.lumpSum) {
+      document.getElementById('edit-premium').value = caseData.lumpSum;
+    } else {
+      document.getElementById('edit-premium').value = caseData.premium;
+    }
+  } else {
+    invWrap.classList.add('hidden');
+    document.getElementById('edit-premium-label').textContent = 'Annual Premium (SGD)';
+    document.getElementById('edit-premium').value = caseData.premium;
+  }
+
+  // Show edit history if exists
+  const historyWrap = document.getElementById('edit-history');
+  const historyList = document.getElementById('edit-history-list');
+  if (caseData.editHistory && caseData.editHistory.length > 0) {
+    historyWrap.classList.remove('hidden');
+    historyList.innerHTML = caseData.editHistory.map(h => {
+      const time = h.editedAt ? new Date(h.editedAt.seconds * 1000).toLocaleString('en-SG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Singapore' }) : '';
+      const changes = [];
+      if (h.oldType !== h.newType) changes.push(`${h.oldType} → ${h.newType}`);
+      if (h.oldPremium !== h.newPremium) changes.push(`${fmtCurrency(h.oldPremium)} → ${fmtCurrency(h.newPremium)}`);
+      return `<div class="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+        <span class="font-medium text-gray-700">${h.editedBy || 'Unknown'}</span> · ${time}
+        <div class="text-gray-400 mt-0.5">${changes.join(' · ') || 'No changes'}</div>
+      </div>`;
+    }).join('');
+  } else {
+    historyWrap.classList.add('hidden');
+    historyList.innerHTML = '';
+  }
+
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  editingCase = null;
+  editInvPremiumType = 'RP';
+  document.getElementById('edit-inv-premium-type-wrap').classList.add('hidden');
+  document.getElementById('edit-premium-label').textContent = 'Annual Premium (SGD)';
+  document.getElementById('edit-modal').classList.add('hidden');
+}
+
+async function saveEditCase() {
+  if (!editingCase) return;
+  const newType = document.getElementById('edit-case-type').value;
+  const rawPrem = parseFloat(document.getElementById('edit-premium').value);
+  if (!newType) { alert('Please select a case type.'); return; }
+  if (!rawPrem || rawPrem <= 0) { alert('Please enter a valid premium amount.'); return; }
+
+  let newPrem = rawPrem;
+  let newPremType = null;
+  let newLumpSum = null;
+
+  if (newType === 'Investment') {
+    newPremType = editInvPremiumType;
+    if (editInvPremiumType === 'SP') {
+      newLumpSum = rawPrem;
+      newPrem = Math.round(rawPrem * 0.1);
+    }
+  }
+
+  // Skip if nothing changed
+  if (newType === editingCase.caseType && newPrem === editingCase.premium &&
+      newPremType === (editingCase.premType || null)) {
+    closeEditModal();
+    return;
+  }
+
+  const editEntry = {
+    editedBy: currentUser.name,
+    editedByIAC: currentUser.iac,
+    editedAt: firebase.firestore.Timestamp.now(),
+    oldType: editingCase.caseType,
+    newType: newType,
+    oldPremium: editingCase.premium,
+    newPremium: newPrem
+  };
+
+  const updateData = {
+    caseType: newType,
+    premium: newPrem,
+    editHistory: firebase.firestore.FieldValue.arrayUnion(editEntry)
+  };
+  if (newPremType) updateData.premType = newPremType;
+  if (newLumpSum)  updateData.lumpSum = newLumpSum;
+  if (newType !== 'Investment') {
+    updateData.premType = firebase.firestore.FieldValue.delete();
+    updateData.lumpSum = firebase.firestore.FieldValue.delete();
+  }
+
+  try {
+    const caseDate = editingCase.date;
+    const oldType = editingCase.caseType;
+    const oldPrem = editingCase.premium;
+    const agentName = editingCase.agentName;
+    await db.collection('cases').doc(editingCase.docId).update(updateData);
+
+    // Build change description for amendment
+    const changeParts = [];
+    if (oldType !== newType) changeParts.push(`Type: ${oldType} → ${newType}`);
+    if (oldPrem !== newPrem) changeParts.push(`Premium: ${fmtCurrency(oldPrem)} → ${fmtCurrency(newPrem)}`);
+    const changeDesc = `Agent: *${agentName}*\n${changeParts.join('\n')}`;
+    sendAmendmentNotification('edit', { date: caseDate }, changeDesc);
+
+    closeEditModal();
+  } catch(e) {
+    console.error('Update error:', e);
+    alert('Error updating case. Please try again.');
+  }
+}
+
+async function deleteCase() {
+  if (!editingCase) return;
+  if (!confirm('Are you sure you want to delete this case? This action cannot be undone.')) return;
+
+  try {
+    const caseDate = editingCase.date;
+    const agentName = editingCase.agentName;
+    const caseType = editingCase.caseType;
+    const premium = editingCase.premium;
+    await db.collection('cases').doc(editingCase.docId).delete();
+
+    const changeDesc = `Agent: *${agentName}*\nRemoved: ${caseType} | ${fmtCurrency(premium)}`;
+    sendAmendmentNotification('delete', { date: caseDate }, changeDesc);
+
+    closeEditModal();
+  } catch(e) {
+    console.error('Delete error:', e);
+    alert('Error deleting case. Please try again.');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN TOOLS (Manager/Director only)
+// ══════════════════════════════════════════════════════════════
+async function adminSearchCases() {
+  const amount = parseFloat(document.getElementById('admin-search').value);
+  const resultsEl = document.getElementById('admin-results');
+  if (!amount) { resultsEl.innerHTML = '<p class="text-xs text-red-500">Enter a premium amount to search.</p>'; return; }
+
+  resultsEl.innerHTML = '<p class="text-xs text-gray-400">Searching...</p>';
+  try {
+    const snap = await db.collection('cases').where('premium', '==', amount).get();
+    if (snap.empty) {
+      resultsEl.innerHTML = '<p class="text-xs text-gray-400">No cases found with that premium.</p>';
+      return;
+    }
+    const items = [];
+    snap.forEach(d => items.push({ ...d.data(), docId: d.id }));
+    resultsEl.innerHTML = items.map(c => {
+      const time = c.submittedAt ? fmtTimestamp(c.submittedAt) : '';
+      return `<div class="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+        <div>
+          <p class="text-sm font-semibold text-gray-800">${c.agentName} · ${c.caseType} · ${fmtCurrency(c.premium)}</p>
+          <p class="text-xs text-gray-400">${c.date} · ${time}</p>
+        </div>
+        <button onclick="adminDeleteCase('${c.docId}', this)" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 transition-colors">Delete</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('Admin search error:', e);
+    resultsEl.innerHTML = '<p class="text-xs text-red-500">Error searching. Please try again.</p>';
+  }
+}
+
+async function adminDeleteCase(docId, btnEl) {
+  if (!confirm('Are you sure you want to delete this case? This cannot be undone.')) return;
+  try {
+    btnEl.textContent = '...';
+    btnEl.disabled = true;
+    await db.collection('cases').doc(docId).delete();
+    btnEl.closest('div.flex').remove();
+  } catch(e) {
+    console.error('Admin delete error:', e);
+    alert('Error deleting case.');
+    btnEl.textContent = 'Delete';
+    btnEl.disabled = false;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
