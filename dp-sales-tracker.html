@@ -1724,15 +1724,9 @@ async function adminDeleteCase(docId, btnEl) {
 //  BOOTSTRAP
 // ══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
-  // Try saved config first, then embedded config
-  let config = null;
-  const saved = localStorage.getItem('dp_firebase_config');
-  if (saved) {
-    try { config = JSON.parse(saved); } catch(e) {}
-  }
-  if (!config && isConfigured(FIREBASE_CONFIG)) {
-    config = FIREBASE_CONFIG;
-  }
+  // Always use the hardcoded config; clear any stale localStorage config
+  localStorage.removeItem('dp_firebase_config');
+  const config = isConfigured(FIREBASE_CONFIG) ? FIREBASE_CONFIG : null;
 
   if (config) {
     initFirebase(config);
