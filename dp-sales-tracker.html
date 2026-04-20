@@ -145,6 +145,13 @@
     <p class="text-xs mt-0.5" style="color:#bfdbfe;" id="header-date"></p>
   </div>
 
+  <!-- Mum Engagement Tool -->
+  <div class="px-4 py-2 bg-gray-50 border-b border-gray-100">
+    <button onclick="openMumTool()" class="w-full py-3 px-6 rounded-full text-white font-semibold text-sm transition-opacity active:opacity-80" style="background: linear-gradient(135deg, #F28B7C, #C8102E); box-shadow: 0 4px 14px rgba(200, 16, 46, 0.3);">
+      🌸 Open Mum Engagement Tool
+    </button>
+  </div>
+
   <!-- Tab Navigation -->
   <div id="nav-bar" class="flex bg-white border-b border-gray-200 sticky top-[72px] z-10 shadow-sm">
     <!-- Injected by JS -->
@@ -272,6 +279,16 @@
         <input id="dash-month-picker" type="month" class="flex-1 px-2 py-2 rounded-xl text-xs font-semibold border border-gray-200 text-gray-600 focus:outline-none focus:ring-2" style="--tw-ring-color:#1e3a5f;" onchange="setDashMonth(this.value)">
       </div>
       <p id="dash-period-label" class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Today</p>
+      <!-- Error / loading banner -->
+      <div id="dash-error-banner" class="hidden mb-3 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+        <span class="text-red-500 text-base mt-0.5">⚠️</span>
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-red-700">Unable to load data</p>
+          <p class="text-xs text-red-600 mt-0.5">Firestore security rules may have expired (30-day test mode limit). Go to <strong>Firebase Console → Firestore Database → Rules</strong> and update the expiry date or set <code>allow read, write: if true;</code></p>
+          <button onclick="clearUnsubs(); loadDashboard();" class="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibond text-white" style="background:#dc2626;">Retry</button>
+        </div>
+      </div>
+      <div id="dash-loading" class="hidden mb-3 text-center text-xs text-gray-400 py-2">Loading...</div>
       <!-- Summary row -->
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 text-center">
@@ -397,6 +414,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
 <script>
+// ══════════════════════════════════════════════════════════════
+//  MUM ENGAGEMENT TOOL URL (change this if you move it into /mum-tool/)
+// ══════════════════════════════════════════════════════════════
+const MUM_TOOL_URL = 'https://jasondporganisation.github.io/';
+
 // ══════════════════════════════════════════════════════════════
 //  FIREBASE CONFIG
 //  Replace this object with your own Firebase project config.
@@ -557,6 +579,17 @@ function doLogin() {
   currentUser = { iac: key, ...user };
   sessionStorage.setItem('dp_user', JSON.stringify(currentUser));
   renderApp();
+}
+
+function openMumTool() {
+  if (!currentUser) { alert('Please log in first.'); return; }
+  const params = new URLSearchParams({
+    rep: currentUser.iac,
+    name: currentUser.name,
+    ref: 'tracker',
+    returnUrl: window.location.href
+  });
+  window.open(`${MUM_TOOL_URL}?${params.toString()}`, '_blank');
 }
 
 function doLogout() {
@@ -1184,6 +1217,8 @@ function updateDashButtons() {
 
 function loadDashboard() {
   if (!db) return;
+  document.getElementById('dash-error-banner').classList.add('hidden');
+  document.getElementById('dash-loading').classList.remove('hidden');
   let startDate, endDate;
   if (dashPeriod === 'today') {
     startDate = todayStr();
@@ -1200,10 +1235,16 @@ function loadDashboard() {
   let q = db.collection('cases').where('date', '>=', startDate);
   if (endDate) q = q.where('date', '<=', endDate);
   const unsub = q.onSnapshot(snap => {
+    document.getElementById('dash-loading').classList.add('hidden');
+    document.getElementById('dash-error-banner').classList.add('hidden');
     const cases = [];
     snap.forEach(d => cases.push(normalizeCase(d.data())));
     renderDashboard(cases);
-  }, err => console.error('loadDashboard:', err));
+  }, err => {
+    document.getElementById('dash-loading').classList.add('hidden');
+    document.getElementById('dash-error-banner').classList.remove('hidden');
+    console.error('loadDashboard:', err);
+  });
   activeUnsubs.push(unsub);
 }
 
@@ -1706,15 +1747,9 @@ async function adminDeleteCase(docId, btnEl) {
 //  BOOTSTRAP
 // ══════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
-  // Try saved config first, then embedded config
-  let config = null;
-  const saved = localStorage.getItem('dp_firebase_config');
-  if (saved) {
-    try { config = JSON.parse(saved); } catch(e) {}
-  }
-  if (!config && isConfigured(FIREBASE_CONFIG)) {
-    config = FIREBASE_CONFIG;
-  }
+  // Always use the hardcoded config; clear any stale localStorage config
+  localStorage.removeItem('dp_firebase_config');
+  const config = isConfigured(FIREBASE_CONFIG) ? FIREBASE_CONFIG : null;
 
   if (config) {
     initFirebase(config);
