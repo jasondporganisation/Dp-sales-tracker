@@ -326,18 +326,6 @@
           <button onclick="adminSearchCases()" class="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style="background:#1e3a5f;">Search</button>
         </div>
         <div id="admin-results"></div>
-        <!-- One-time migration: fix old DIRECTOR cases -->
-        <div class="mt-4 pt-4 border-t border-gray-100">
-          <p class="text-xs text-gray-500 mb-2">Fix cases submitted under old "DIRECTOR" login (reassigns to IAC 1220629)</p>
-          <button onclick="adminFixDirectorCases()" class="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style="background:#7c3aed;">Fix Director Cases</button>
-          <p id="admin-fix-status" class="text-xs mt-2 text-gray-500"></p>
-        </div>
-        <!-- Diagnostic: find all cases for Jason Ng -->
-        <div class="mt-4 pt-4 border-t border-gray-100">
-          <p class="text-xs text-gray-500 mb-2">Diagnose: show all cases stored under "Jason Ng"</p>
-          <button onclick="adminDiagnoseJason()" class="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style="background:#0369a1;">Diagnose Jason Cases</button>
-          <div id="admin-diagnose-results" class="text-xs mt-2 text-gray-600 space-y-1"></div>
-        </div>
       </div>
     </div>
 
@@ -1762,40 +1750,6 @@ async function adminDeleteCase(docId, btnEl) {
   }
 }
 
-async function adminDiagnoseJason() {
-  const el = document.getElementById('admin-diagnose-results');
-  el.textContent = 'Searching all cases for Jason Ng...';
-  try {
-    const snap = await db.collection('cases').where('agentName', '==', 'Jason Ng').get();
-    if (snap.empty) { el.textContent = 'No cases found with agentName "Jason Ng".'; return; }
-    const rows = [];
-    snap.forEach(doc => {
-      const d = doc.data();
-      rows.push(`agentIAC: "${d.agentIAC}" | date: ${d.date} | premium: ${d.premium}`);
-    });
-    el.innerHTML = `<strong>${rows.length} case(s):</strong><br>` + rows.join('<br>');
-  } catch(e) {
-    el.textContent = 'Error: ' + e.message;
-  }
-}
-
-async function adminFixDirectorCases() {
-  const statusEl = document.getElementById('admin-fix-status');
-  statusEl.textContent = 'Searching...';
-  try {
-    const snap = await db.collection('cases').where('agentIAC', '==', 'DIRECTOR').get();
-    if (snap.empty) { statusEl.textContent = 'No old DIRECTOR cases found. Already fixed!'; return; }
-    const batch = db.batch();
-    snap.forEach(doc => {
-      batch.update(doc.ref, { agentIAC: '1220629', agentName: 'Jason Ng' });
-    });
-    await batch.commit();
-    statusEl.textContent = `Done — updated ${snap.size} case${snap.size !== 1 ? 's' : ''} to IAC 1220629.`;
-  } catch(e) {
-    console.error('Fix error:', e);
-    statusEl.textContent = 'Error: ' + e.message;
-  }
-}
 
 // ══════════════════════════════════════════════════════════════
 //  BOOTSTRAP
