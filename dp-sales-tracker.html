@@ -145,6 +145,13 @@
     <p class="text-xs mt-0.5" style="color:#bfdbfe;" id="header-date"></p>
   </div>
 
+  <!-- Mum Engagement Tool -->
+  <div class="px-4 py-2 bg-gray-50 border-b border-gray-100">
+    <button onclick="openMumTool()" class="w-full py-3 px-6 rounded-full text-white font-semibold text-sm transition-opacity active:opacity-80" style="background: linear-gradient(135deg, #F28B7C, #C8102E); box-shadow: 0 4px 14px rgba(200, 16, 46, 0.3);">
+      🌸 Open Mum Engagement Tool
+    </button>
+  </div>
+
   <!-- Tab Navigation -->
   <div id="nav-bar" class="flex bg-white border-b border-gray-200 sticky top-[72px] z-10 shadow-sm">
     <!-- Injected by JS -->
@@ -408,6 +415,11 @@
 
 <script>
 // ══════════════════════════════════════════════════════════════
+//  MUM ENGAGEMENT TOOL URL (change this if you move it into /mum-tool/)
+// ══════════════════════════════════════════════════════════════
+const MUM_TOOL_URL = 'https://jasondporganisation.github.io/';
+
+// ══════════════════════════════════════════════════════════════
 //  FIREBASE CONFIG
 //  Replace this object with your own Firebase project config.
 //  Get it from: Firebase Console → Project Settings → Your apps
@@ -567,6 +579,17 @@ function doLogin() {
   currentUser = { iac: key, ...user };
   sessionStorage.setItem('dp_user', JSON.stringify(currentUser));
   renderApp();
+}
+
+function openMumTool() {
+  if (!currentUser) { alert('Please log in first.'); return; }
+  const params = new URLSearchParams({
+    rep: currentUser.iac,
+    name: currentUser.name,
+    ref: 'tracker',
+    returnUrl: window.location.href
+  });
+  window.open(`${MUM_TOOL_URL}?${params.toString()}`, '_blank');
 }
 
 function doLogout() {
