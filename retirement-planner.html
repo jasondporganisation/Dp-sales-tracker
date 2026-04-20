@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retirement Planner — Dream Planners</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body style="margin:0;padding:0">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useMemo, useEffect } = React;
+
+function CPFRetirementPlanner() {
+  // ---------- CLIENT PROFILE ----------
+  const [clientName, setClientName] = useState("");
+  const [clientDOB, setClientDOB] = useState("");
+  const [currentAge, setCurrentAge] = useState(40);
+  const [retirementAge, setRetirementAge] = useState(65);
+  const [lifeExpectancy, setLifeExpectancy] = useState(85);
+  const [monthlyExpense, setMonthlyExpense] = useState(3500);
+  const [inflationRate, setInflationRate] = useState(2.5);
+
+  // ---------- CPF ----------
+  const [tier, setTier] = useState("FRS");
+  const [cpfPlan, setCpfPlan] = useState("standard");
+  const CPF_TIERS = {
+    BRS: { sum: 110200, payout: 950, label: "Basic Retirement Sum" },
+    FRS: { sum: 220400, payout: 1780, label: "Full Retirement Sum" },
+    ERS: { sum: 440800, payout: 3295, label: "Enhanced Retirement Sum" },
+  };
+  const ESCALATING_START_RATIO = 0.8;
+  const ESCALATING_GROWTH = 0.02;
+
+  // ---------- INSURANCE ----------
+  const [policies, setPolicies] = useState([
+    { id: 1, name: "", type: "Endowment", annualPremium: 0, cashValue: 0,
+      maturityAge: 65, projectedPayout: 0, payoutType: "lump",
+      monthlyPayout: 0, payoutYears: 20 },
+  ]);
+  const addPolicy = () => setPolicies([...policies, {
+    id: Date.now(), name: "", type: "Endowment", annualPremium: 0, cashValue: 0,
+    maturityAge: 65, projectedPayout: 0, payoutType: "lump",
+    monthlyPayout: 0, payoutYears: 20,
+  }]);
+  const removePolicy = (id) => setPolicies(policies.filter((p) => p.id !== id));
+  const updatePolicy = (id, field, value) =>
+    setPolicies(policies.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+
+  // ---------- BUCKETS ----------
+  const [buckets, setBuckets] = useState([
+    { id: 1, name: "Cash / Fixed Deposit", amount: 0, returnRate: 3.0 },
+    { id: 2, name: "SRS", amount: 0, returnRate: 5.0 },
+    { id: 3, name: "Stocks / ETFs", amount: 0, returnRate: 7.0 },
+    { id: 4, name: "Unit Trusts", amount: 0, returnRate: 5.5 },
+  ]);
+  const addBucket = () => setBuckets([...buckets, {
+    id: Date.now(), name: "New bucket", amount: 0, returnRate: 5.0,
+  }]);
+  const removeBucket = (id) => setBuckets(buckets.filter((b) => b.id !== id));
+  const updateBucket = (id, field, value) =>
+    setBuckets(buckets.map((b) => (b.id === id ? { ...b, [field]: value } : b)));
+
+  // ---------- INVESTMENT SIMULATOR ----------
+  const [simContribution, setSimContribution] = useState(10000);
+  const [simMode, setSimMode] = useState("yearly");
+  const [simTerm, setSimTerm] = useState(10);
+  const [simDividendRate, setSimDividendRate] = useState(6);
+  const [simDividendAction, setSimDividendAction] = useState("reinvest");
+
+  // ---------- UI STATE ----------
+  const [chartHover, setChartHover] = useState(null);
+  const [stickyVisible, setStickyVisible] = useState(false);
+
+  // ---------- SAVE / LOAD ----------
+  const [savedClients, setSavedClients] = useState({});
+  const [selectedClient, setSelectedClient] = useState("");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState("");
+
+  useEffect(() => {
+    if (window.__dpClientCache) setSavedClients(window.__dpClientCache);
+  }, []);
+
+  useEffect(() => {
+    const handle = () => setStickyVisible(window.scrollY > 500);
+    window.addEventListener("scroll", handle, { passive: true });
+    return () => window.removeEventListener("scroll", handle);
+  }, []);
+
+  const saveClient = () => {
+    const name = saveName.trim() || clientName.trim() || `Client ${Object.keys(savedClients).length + 1}`;
+    const snapshot = {
+      clientName, clientDOB, currentAge, retirementAge, lifeExpectancy,
+      monthlyExpense, inflationRate, tier, cpfPlan, policies, buckets,
+      savedAt: new Date().toISOString(),
+    };
+    const updated = { ...savedClients, [name]: snapshot };
+    setSavedClients(updated);
+    window.__dpClientCache = updated;
+    setShowSaveModal(false);
+    setSaveName("");
+    setSelectedClient(name);
+  };
+
+  const loadClient = (name) => {
+    const data = savedClients[name];
+    if (!data) return;
+    setClientName(data.clientName || "");
+    setClientDOB(data.clientDOB || "");
+    setCurrentAge(data.currentAge);
+    setRetirementAge(data.retirementAge);
+    setLifeExpectancy(data.lifeExpectancy);
+    setMonthlyExpense(data.monthlyExpense);
+    setInflationRate(data.inflationRate);
+    setTier(data.tier);
+    setCpfPlan(data.cpfPlan || "standard");
+    setPolicies(data.policies || []);
+    setBuckets(data.buckets || []);
+    setSelectedClient(name);
+  };
+
+  const deleteClient = (name) => {
+    const updated = { ...savedClients };
+    delete updated[name];
+    setSavedClients(updated);
+    window.__dpClientCache = updated;
+    if (selectedClient === name) setSelectedClient("");
+  };
+
+  const newClient = () => {
+    setClientName(""); setClientDOB("");
+    setCurrentAge(40); setRetirementAge(65); setLifeExpectancy(85);
+    setMonthlyExpense(3500); setInflationRate(2.5);
+    setTier("FRS"); setCpfPlan("standard");
+    setPolicies([{ id: 1, name: "", type: "Endowment", annualPremium: 0, cashValue: 0, maturityAge: 65, projectedPayout: 0, payoutType: "lump", monthlyPayout: 0, payoutYears: 20 }]);
+    setBuckets([
+      { id: 1, name: "Cash / Fixed Deposit", amount: 0, returnRate: 3.0 },
+      { id: 2, name: "SRS", amount: 0, returnRate: 5.0 },
+      { id: 3, name: "Stocks / ETFs", amount: 0, returnRate: 7.0 },
+      { id: 4, name: "Unit Trusts", amount: 0, returnRate: 5.5 },
+    ]);
+    setSelectedClient("");
+  };
+
+  // ---------- CALCULATIONS ----------
+  const results = useMemo(() => {
+    const yearsToRetirement = Math.max(0, retirementAge - currentAge);
+    const yearsInRetirement = Math.max(1, lifeExpectancy - retirementAge);
+    const inflation = inflationRate / 100;
+
+    const firstYearMonthlyExpense =
+      monthlyExpense * Math.pow(1 + inflation, yearsToRetirement);
+
+    const baseCpf = CPF_TIERS[tier].payout;
+    const cpfStartPayout =
+      cpfPlan === "escalating" ? baseCpf * ESCALATING_START_RATIO : baseCpf;
+
+    const totalAnnualPremium = policies.reduce((s, p) => s + (parseFloat(p.annualPremium) || 0), 0);
+    const totalCashValue = policies.reduce((s, p) => s + (parseFloat(p.cashValue) || 0), 0);
+    const totalLumpPayouts = policies
+      .filter((p) => p.payoutType === "lump")
+      .reduce((s, p) => s + (parseFloat(p.projectedPayout) || 0), 0);
+
+    const bucketsAtRetirement = buckets.map((b) => ({
+      ...b,
+      futureValue:
+        (parseFloat(b.amount) || 0) *
+        Math.pow(1 + (parseFloat(b.returnRate) || 0) / 100, yearsToRetirement),
+    }));
+    const totalBucketsFV = bucketsAtRetirement.reduce((s, b) => s + b.futureValue, 0);
+
+    const totalBucketAmount = buckets.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
+    const blendedReturn = totalBucketAmount > 0
+      ? buckets.reduce((s, b) => s + ((parseFloat(b.amount) || 0) / totalBucketAmount) * (parseFloat(b.returnRate) || 0), 0)
+      : 4;
+
+    const chartData = [];
+    let savingsPool = totalBucketsFV + totalLumpPayouts;
+    let cumulativeShortfall = 0;
+
+    for (let yr = 0; yr < yearsInRetirement; yr++) {
+      const ageAtYear = retirementAge + yr;
+      const monthlyNeed = firstYearMonthlyExpense * Math.pow(1 + inflation, yr);
+      const annualNeed = monthlyNeed * 12;
+
+      const cpfMonthly = cpfStartPayout * Math.pow(1 + (cpfPlan === "escalating" ? ESCALATING_GROWTH : 0), yr);
+      const annualCpf = cpfMonthly * 12;
+
+      let annualInsMonthly = 0;
+      policies.forEach((p) => {
+        if (p.payoutType === "monthly") {
+          const startAge = parseFloat(p.maturityAge) || retirementAge;
+          const years = parseFloat(p.payoutYears) || 0;
+          if (ageAtYear >= startAge && ageAtYear < startAge + years) {
+            annualInsMonthly += (parseFloat(p.monthlyPayout) || 0) * 12;
+          }
+        }
+      });
+
+      const guaranteedIncome = annualCpf + annualInsMonthly;
+      const gap = Math.max(0, annualNeed - guaranteedIncome);
+
+      const drawn = Math.min(savingsPool, gap);
+      savingsPool = Math.max(0, savingsPool - drawn);
+      savingsPool *= 1 + blendedReturn / 100;
+
+      const uncovered = gap - drawn;
+      cumulativeShortfall += uncovered;
+
+      chartData.push({
+        age: ageAtYear,
+        need: Math.round(monthlyNeed),
+        cpf: Math.round(cpfMonthly),
+        insurance: Math.round(annualInsMonthly / 12),
+        savingsRemaining: Math.round(savingsPool),
+        uncovered: Math.round(uncovered / 12),
+      });
+    }
+
+    const solverReturn = 0.06;
+    const lumpSumToday = cumulativeShortfall > 0
+      ? cumulativeShortfall / Math.pow(1 + solverReturn, yearsToRetirement) : 0;
+    const monthlyRate = solverReturn / 12;
+    const months = yearsToRetirement * 12;
+    const monthlyTopUp = cumulativeShortfall > 0 && months > 0
+      ? cumulativeShortfall / ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) : 0;
+
+    const solveScenario = (rate) => {
+      if (cumulativeShortfall <= 0) return { lump: 0, monthly: 0 };
+      const lump = cumulativeShortfall / Math.pow(1 + rate, yearsToRetirement);
+      const mr = rate / 12;
+      const monthly = months > 0 ? cumulativeShortfall / ((Math.pow(1 + mr, months) - 1) / mr) : 0;
+      return { lump, monthly };
+    };
+
+    return {
+      yearsToRetirement, yearsInRetirement, firstYearMonthlyExpense,
+      cpfStartPayout, cpfPlan,
+      coveragePct: Math.min(100, (cpfStartPayout / firstYearMonthlyExpense) * 100),
+      totalAnnualPremium, totalCashValue, totalLumpPayouts,
+      totalBucketsFV, blendedReturn, cumulativeShortfall, chartData,
+      lumpSumToday, monthlyTopUp,
+      scenarios: {
+        four: solveScenario(0.04),
+        six: solveScenario(0.06),
+        eight: solveScenario(0.08),
+      },
+    };
+  }, [currentAge, retirementAge, lifeExpectancy, monthlyExpense, inflationRate, tier, cpfPlan, policies, buckets]);
+
+  const fmt = (n) => "S$" + Math.round(n || 0).toLocaleString("en-SG");
+  const maxChartValue = Math.max(...results.chartData.map((d) => d.need), 1);
+
+  // ---------- INVESTMENT SIMULATOR CALCULATION ----------
+  const simulation = useMemo(() => {
+    const contribution = parseFloat(simContribution) || 0;
+    const term = parseInt(simTerm) || 10;
+    const rate = (parseFloat(simDividendRate) || 0) / 100;
+    const isMonthly = simMode === "monthly";
+
+    const periodContribution = isMonthly ? contribution : contribution;
+    const periodsPerYear = isMonthly ? 12 : 1;
+    const periodRate = rate / periodsPerYear;
+    const totalPeriods = term * periodsPerYear;
+    const totalContributed = periodContribution * totalPeriods;
+
+    let policyValue = 0;
+    let cumulativeCashDividends = 0;
+    const yearlySnapshots = [];
+    let yearAccContrib = 0;
+    let yearAccDividends = 0;
+
+    for (let p = 0; p < totalPeriods; p++) {
+      policyValue += periodContribution;
+      yearAccContrib += periodContribution;
+      const dividend = policyValue * periodRate;
+      yearAccDividends += dividend;
+
+      if (simDividendAction === "reinvest") {
+        policyValue += dividend;
+      } else {
+        cumulativeCashDividends += dividend;
+      }
+
+      if ((p + 1) % periodsPerYear === 0) {
+        const year = Math.floor(p / periodsPerYear) + 1;
+        yearlySnapshots.push({
+          year,
+          contributed: yearAccContrib,
+          totalContributedToDate: periodContribution * (p + 1),
+          policyValue: policyValue,
+          annualDividend: yearAccDividends,
+          cumulativeCashDividends: cumulativeCashDividends,
+        });
+        yearAccContrib = 0;
+        yearAccDividends = 0;
+      }
+    }
+
+    const finalPolicyValue = policyValue;
+    const postTermMonthlyDividend = (finalPolicyValue * rate) / 12;
+    const postTermAnnualDividend = finalPolicyValue * rate;
+
+    const firstYearMonthlyGap = Math.max(0, results.firstYearMonthlyExpense - results.cpfStartPayout);
+    const gapClosurePct = firstYearMonthlyGap > 0
+      ? Math.min(100, (postTermMonthlyDividend / firstYearMonthlyGap) * 100)
+      : 100;
+
+    const yearsOfPayout = Math.max(0, lifeExpectancy - retirementAge);
+    const lifetimeDividends = postTermAnnualDividend * yearsOfPayout;
+    const adjustedShortfall = Math.max(0, results.cumulativeShortfall - lifetimeDividends);
+
+    return {
+      totalContributed, finalPolicyValue, postTermMonthlyDividend,
+      postTermAnnualDividend, cumulativeCashDividends, yearlySnapshots,
+      firstYearMonthlyGap, gapClosurePct, lifetimeDividends,
+      adjustedShortfall, periodContribution, isMonthly, term,
+    };
+  }, [simContribution, simMode, simTerm, simDividendRate, simDividendAction, results, lifeExpectancy, retirementAge]);
+
+  // ---------- BRANDED PDF EXPORT ----------
+  const exportPDF = async () => {
+    const loadScript = (src) => new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+    if (!window.jspdf) {
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    let y = margin;
+
+    const teal = [13, 79, 74];
+    const cream = [245, 242, 234];
+    const ink = [26, 26, 26];
+    const muted = [107, 107, 107];
+    const accent = [244, 162, 97];
+
+    const drawFooter = () => {
+      doc.setDrawColor(...muted); doc.setLineWidth(0.3);
+      doc.line(margin, pageH - 40, pageW - margin, pageH - 40);
+      doc.setFontSize(7); doc.setTextColor(...muted); doc.setFont(undefined, "normal");
+      doc.text("Jason Ng · IAC 1220629 · DP Organisation · Great Eastern Financial Advisers", margin, pageH - 26);
+      doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageW - margin, pageH - 26, { align: "right" });
+      doc.text("Illustration only — not financial advice. Actual returns and CPF payouts may vary.", margin, pageH - 14);
+    };
+
+    doc.setFillColor(...teal); doc.rect(0, 0, pageW, 90, "F");
+    doc.setFontSize(9); doc.setTextColor(...cream); doc.setFont(undefined, "normal");
+    doc.text("DP ORGANISATION · GREAT EASTERN FINANCIAL ADVISERS", margin, 32);
+    doc.setFontSize(22); doc.setFont(undefined, "bold");
+    doc.text("Retirement Shortfall Analysis", margin, 60);
+    doc.setFontSize(10); doc.setFont(undefined, "normal");
+    doc.text(`Prepared ${new Date().toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" })}`, margin, 78);
+    y = 120;
+
+    doc.setTextColor(...ink); doc.setFontSize(9); doc.setFont(undefined, "bold");
+    doc.text("CLIENT", margin, y);
+    doc.setFont(undefined, "normal"); doc.setFontSize(16);
+    doc.text(clientName || "—", margin, y + 20);
+    doc.setFontSize(9); doc.setTextColor(...muted);
+    if (clientDOB) doc.text(`DOB: ${clientDOB}`, margin, y + 36);
+    doc.text(`Current age: ${currentAge}   ·   Retirement: ${retirementAge}   ·   Horizon: ${lifeExpectancy}`, margin, y + (clientDOB ? 50 : 36));
+    y += clientDOB ? 72 : 58;
+
+    const sectionHeader = (num, title) => {
+      doc.setDrawColor(...ink); doc.setLineWidth(0.5);
+      doc.line(margin, y, pageW - margin, y);
+      y += 14;
+      doc.setTextColor(...muted); doc.setFontSize(8); doc.setFont(undefined, "bold");
+      doc.text(`${num}  ·  ${title.toUpperCase()}`, margin, y);
+      y += 20;
+    };
+
+    sectionHeader("01", "Planning Inputs");
+    doc.setTextColor(...ink); doc.setFontSize(10); doc.setFont(undefined, "normal");
+    const inputRows = [
+      ["Monthly expenses (today)", fmt(monthlyExpense)],
+      ["Inflation rate", `${inflationRate}% p.a.`],
+      ["CPF tier", `${tier} — ${fmt(CPF_TIERS[tier].sum)}`],
+      ["CPF LIFE plan", cpfPlan === "escalating" ? "Escalating (+2% p.a.)" : "Standard (level)"],
+      ["Years to retirement", `${results.yearsToRetirement}`],
+      ["Years in retirement", `${results.yearsInRetirement}`],
+    ];
+    inputRows.forEach(([k, v]) => {
+      doc.setTextColor(...muted); doc.text(k, margin, y);
+      doc.setTextColor(...ink); doc.text(v, pageW - margin, y, { align: "right" });
+      y += 16;
+    });
+    y += 8;
+
+    sectionHeader("02", "Insurance Portfolio");
+    doc.setFontSize(8); doc.setTextColor(...muted); doc.setFont(undefined, "bold");
+    doc.text("POLICY", margin, y); doc.text("TYPE", margin + 180, y);
+    doc.text("PREMIUM/YR", margin + 260, y); doc.text("CASH VALUE", margin + 340, y);
+    doc.text("PAYOUT", margin + 420, y);
+    y += 4; doc.setDrawColor(...ink); doc.line(margin, y, pageW - margin, y); y += 12;
+    doc.setFont(undefined, "normal"); doc.setFontSize(9); doc.setTextColor(...ink);
+
+    if (policies.length === 0 || policies.every((p) => !p.name && !p.annualPremium)) {
+      doc.setTextColor(...muted); doc.setFont(undefined, "italic");
+      doc.text("No policies captured.", margin, y); y += 16;
+      doc.setFont(undefined, "normal");
+    } else {
+      policies.forEach((p) => {
+        if (!p.name && !p.annualPremium) return;
+        const payoutDesc = p.payoutType === "lump" ? fmt(p.projectedPayout) : `${fmt(p.monthlyPayout)}/mo × ${p.payoutYears}y`;
+        doc.setTextColor(...ink);
+        doc.text((p.name || "Unnamed").substring(0, 26), margin, y);
+        doc.text(p.type, margin + 180, y);
+        doc.text(fmt(p.annualPremium), margin + 260, y);
+        doc.text(fmt(p.cashValue), margin + 340, y);
+        doc.text(payoutDesc, margin + 420, y);
+        y += 14;
+        if (y > pageH - 80) { drawFooter(); doc.addPage(); y = margin; }
+      });
+    }
+    y += 4; doc.setDrawColor(...ink); doc.line(margin, y, pageW - margin, y); y += 14;
+    doc.setFont(undefined, "bold"); doc.setTextColor(...teal);
+    doc.text("TOTAL", margin, y);
+    doc.text(fmt(results.totalAnnualPremium), margin + 260, y);
+    doc.text(fmt(results.totalCashValue), margin + 340, y);
+    doc.text(fmt(results.totalLumpPayouts) + " (lump)", margin + 420, y);
+    y += 24;
+
+    if (y > pageH - 180) { drawFooter(); doc.addPage(); y = margin; }
+    sectionHeader("03", "Savings & Investments");
+    doc.setFontSize(8); doc.setTextColor(...muted); doc.setFont(undefined, "bold");
+    doc.text("BUCKET", margin, y); doc.text("AMOUNT TODAY", margin + 220, y);
+    doc.text("RETURN P.A.", margin + 340, y); doc.text(`VALUE AT ${retirementAge}`, margin + 430, y);
+    y += 4; doc.setDrawColor(...ink); doc.line(margin, y, pageW - margin, y); y += 12;
+    doc.setFont(undefined, "normal"); doc.setFontSize(9); doc.setTextColor(...ink);
+    buckets.forEach((b) => {
+      const yrs = Math.max(0, retirementAge - currentAge);
+      const fv = (parseFloat(b.amount) || 0) * Math.pow(1 + (parseFloat(b.returnRate) || 0) / 100, yrs);
+      doc.setTextColor(...ink);
+      doc.text(b.name, margin, y); doc.text(fmt(b.amount), margin + 220, y);
+      doc.text(`${b.returnRate}%`, margin + 340, y);
+      doc.setTextColor(...teal); doc.text(fmt(fv), margin + 430, y);
+      y += 14;
+      if (y > pageH - 80) { drawFooter(); doc.addPage(); y = margin; }
+    });
+    y += 4; doc.setDrawColor(...ink); doc.line(margin, y, pageW - margin, y); y += 14;
+    doc.setFont(undefined, "bold"); doc.setTextColor(...teal);
+    doc.text("TOTAL", margin, y);
+    doc.text(fmt(buckets.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0)), margin + 220, y);
+    doc.text(`${results.blendedReturn.toFixed(1)}% blended`, margin + 340, y);
+    doc.text(fmt(results.totalBucketsFV), margin + 430, y);
+    y += 30;
+
+    if (y > pageH - 200) { drawFooter(); doc.addPage(); y = margin; }
+    sectionHeader("04", "Retirement Projection");
+    const metrics = [
+      { l: "EXPENSES AT 65", v: fmt(results.firstYearMonthlyExpense), sub: "/ month" },
+      { l: "CPF LIFE PAYOUT", v: fmt(results.cpfStartPayout), sub: "/ month (yr 1)" },
+      { l: "COVERAGE", v: `${Math.round(results.coveragePct)}%`, sub: "of first-year need" },
+      { l: "SAVINGS AT 65", v: fmt(results.totalBucketsFV + results.totalLumpPayouts), sub: "incl. insurance" },
+    ];
+    const mW = (pageW - margin * 2 - 12) / 4;
+    metrics.forEach((m, i) => {
+      const x = margin + i * (mW + 4);
+      doc.setFillColor(...cream); doc.rect(x, y, mW, 70, "F");
+      doc.setFontSize(7); doc.setTextColor(...muted); doc.setFont(undefined, "bold");
+      doc.text(m.l, x + 10, y + 16);
+      doc.setFontSize(14); doc.setTextColor(...ink); doc.setFont(undefined, "bold");
+      doc.text(m.v, x + 10, y + 40);
+      doc.setFontSize(8); doc.setTextColor(...muted); doc.setFont(undefined, "italic");
+      doc.text(m.sub, x + 10, y + 58);
+    });
+    y += 88;
+
+    if (y > pageH - 240) { drawFooter(); doc.addPage(); y = margin; }
+    doc.setFillColor(...ink); doc.rect(margin, y, pageW - margin * 2, 180, "F");
+    doc.setFontSize(8); doc.setTextColor(...cream); doc.setFont(undefined, "bold");
+    doc.text("05 · ANALYSIS", margin + 20, y + 22);
+
+    if (results.cumulativeShortfall > 0) {
+      doc.setFontSize(12); doc.setFont(undefined, "normal");
+      doc.text("Total projected shortfall across retirement:", margin + 20, y + 46);
+      doc.setFontSize(24); doc.setFont(undefined, "bold"); doc.setTextColor(...accent);
+      doc.text(fmt(results.cumulativeShortfall), margin + 20, y + 76);
+      doc.setFontSize(7); doc.setTextColor(...accent); doc.setFont(undefined, "bold");
+      doc.text("LUMP SUM TODAY @ 6% P.A.", margin + 20, y + 104);
+      doc.setFontSize(16); doc.setTextColor(...cream);
+      doc.text(fmt(results.lumpSumToday), margin + 20, y + 126);
+      doc.setFontSize(8); doc.setTextColor(...cream); doc.setFont(undefined, "italic");
+      doc.text(`Single contribution, grows to close gap by ${retirementAge}`, margin + 20, y + 144);
+      const midX = margin + (pageW - margin * 2) / 2 + 10;
+      doc.setFontSize(7); doc.setTextColor(...accent); doc.setFont(undefined, "bold");
+      doc.text(`MONTHLY TOP-UP @ 6% P.A. × ${results.yearsToRetirement}Y`, midX, y + 104);
+      doc.setFontSize(16); doc.setTextColor(...cream); doc.setFont(undefined, "bold");
+      doc.text(fmt(results.monthlyTopUp), midX, y + 126);
+      doc.setFontSize(8); doc.setTextColor(...cream); doc.setFont(undefined, "italic");
+      doc.text("Regular contribution until retirement", midX, y + 144);
+    } else {
+      doc.setFontSize(14); doc.setFont(undefined, "bold"); doc.setTextColor(...cream);
+      doc.text("On track.", margin + 20, y + 60);
+      doc.setFontSize(10); doc.setFont(undefined, "normal");
+      doc.text("Current plan covers projected retirement needs.", margin + 20, y + 82);
+    }
+    y += 200;
+
+    if (results.cumulativeShortfall > 0) {
+      if (y > pageH - 160) { drawFooter(); doc.addPage(); y = margin; }
+      doc.setTextColor(...muted); doc.setFontSize(8); doc.setFont(undefined, "bold");
+      doc.text("SENSITIVITY · REQUIRED CONTRIBUTION AT DIFFERENT RETURN ASSUMPTIONS", margin, y);
+      y += 14; doc.setDrawColor(...ink); doc.line(margin, y, pageW - margin, y); y += 14;
+      doc.setFontSize(9); doc.setFont(undefined, "bold"); doc.setTextColor(...ink);
+      doc.text("Return p.a.", margin, y); doc.text("Lump Sum Today", margin + 180, y); doc.text("Monthly Top-Up", margin + 340, y);
+      y += 6; doc.setDrawColor(...muted); doc.line(margin, y, pageW - margin, y); y += 14;
+      doc.setFont(undefined, "normal");
+      const rows = [["4%", results.scenarios.four], ["6% *", results.scenarios.six], ["8%", results.scenarios.eight]];
+      rows.forEach(([label, s]) => {
+        if (label.includes("*")) { doc.setFillColor(253, 241, 220); doc.rect(margin, y - 10, pageW - margin * 2, 18, "F"); doc.setFont(undefined, "bold"); }
+        else { doc.setFont(undefined, "normal"); }
+        doc.setTextColor(...ink);
+        doc.text(label, margin, y); doc.text(fmt(s.lump), margin + 180, y); doc.text(fmt(s.monthly) + "/mo", margin + 340, y);
+        y += 18;
+      });
+      y += 10;
+    }
+
+    if (y > pageH - 100) { drawFooter(); doc.addPage(); y = margin; }
+    doc.setFontSize(7); doc.setTextColor(...muted); doc.setFont(undefined, "italic");
+    const disclaimer = "Figures based on CPF Board 2026 retirement sums and CPF LIFE payout estimates for members turning 55 in 2026. Insurance and investment returns are projected from client inputs — actual returns not guaranteed. Inflation applied to expenses only. This is a planning illustration, not a formal needs analysis or product recommendation.";
+    const disclaimerLines = doc.splitTextToSize(disclaimer, pageW - margin * 2);
+    doc.text(disclaimerLines, margin, y);
+    drawFooter();
+
+    const filename = `Retirement_Analysis_${(clientName || "Client").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    doc.save(filename);
+  };
+
+  // ---------- SVG CHART ----------
+  const buildChartPaths = () => {
+    const data = results.chartData;
+    if (data.length === 0) return { needPath: "", incomePath: "", needLine: "", incomeLine: "", pts: [] };
+    const W = 1000, H = 260;
+    const n = data.length;
+    const getX = (i) => n > 1 ? (i / (n - 1)) * W : W / 2;
+    const getYNeed = (d) => H - (d.need / maxChartValue) * H * 0.9;
+    const getYIncome = (d) => H - ((d.cpf + d.insurance) / maxChartValue) * H * 0.9;
+    const needPts = data.map((d, i) => [getX(i), getYNeed(d)]);
+    const incomePts = data.map((d, i) => [getX(i), getYIncome(d)]);
+    const toPolyline = (pts) => pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+    const toArea = (pts) => {
+      const first = pts[0], last = pts[pts.length - 1];
+      return `M ${first[0].toFixed(1)},${H} L ${toPolyline(pts)} L ${last[0].toFixed(1)},${H} Z`;
+    };
+    return {
+      needPath: toArea(needPts), incomePath: toArea(incomePts),
+      needLine: toPolyline(needPts), incomeLine: toPolyline(incomePts),
+      pts: needPts.map((_, i) => ({ x: needPts[i][0], yNeed: needPts[i][1], yIncome: incomePts[i][1] })),
+    };
+  };
+  const chartPaths = buildChartPaths();
+
+  // ── DPG BRAND DESIGN TOKENS ────────────────────────────────────────────────
+  const bg        = "#f7f4ee";
+  const surface   = "#ffffff";
+  const navy      = "#1a2472";
+  const navyDark  = "#111850";
+  const navyBlue  = "#1e3a8a";
+  const gold      = "#b8952a";
+  const goldLight = "#d4a940";
+  const goldPale  = "#f0e0a8";
+  const text      = "#1c1c2e";
+  const muted     = "#6b6b7e";
+  const border    = "#e2ddd4";
+  const green     = "#166534";
+  const greenL    = "#dcfce7";
+  const rose      = "#9f1239";
+  const roseL     = "#fff1f2";
+
+  const shadowSm  = "0 2px 8px rgba(26,36,114,0.06)";
+  const shadowMd  = "0 8px 32px rgba(26,36,114,0.08)";
+  const shadowLg  = "0 16px 48px rgba(26,36,114,0.13)";
+
+  // Gap closure ring
+  const ringR = 52, ringC = 2 * Math.PI * ringR;
+  const gapPct = Math.min(simulation.gapClosurePct, 100);
+  const ringOffset = ringC - (gapPct / 100) * ringC;
+
+  return (
+    <div style={{ minHeight: "100vh", background: bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: text }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        input[type=range] {
+          -webkit-appearance: none; width: 100%; height: 4px;
+          background: ${border}; outline: none; border-radius: 100px;
+          cursor: pointer; margin: 12px 0 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+          -webkit-appearance: none; width: 22px; height: 22px;
+          background: ${navy}; cursor: pointer; border-radius: 50%;
+          box-shadow: 0 2px 8px rgba(26,36,114,0.35);
+          border: 3px solid #fff;
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+        input[type=range]:hover::-webkit-slider-thumb,
+        input[type=range]:active::-webkit-slider-thumb { transform: scale(1.25); box-shadow: 0 3px 12px rgba(26,36,114,0.4); }
+
+        .ci {
+          width: 100%; border: none; background: transparent;
+          padding: 8px 10px; font-family: inherit; font-size: 13px;
+          color: ${text}; outline: none;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .ci:focus { background: #f7f9ff; }
+
+        .ib {
+          width: 32px; height: 32px; background: transparent;
+          border: 1.5px solid ${border}; border-radius: 8px;
+          cursor: pointer; font-size: 17px; color: ${muted};
+          transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+        }
+        .ib:hover { background: ${roseL}; color: ${rose}; border-color: #fecdd3; }
+
+        .ab {
+          background: transparent; border: 1.5px dashed ${gold};
+          color: ${gold}; padding: 12px 20px;
+          font-family: 'DM Mono', monospace; font-size: 11px;
+          letter-spacing: 0.08em; text-transform: uppercase;
+          cursor: pointer; width: 100%; border-radius: 12px; transition: all 0.2s;
+          font-weight: 500;
+        }
+        .ab:hover { background: ${goldPale}; border-color: ${goldLight}; border-style: solid; }
+
+        .ptable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+        .ptable th {
+          text-align: left; font-family: 'DM Mono', monospace;
+          font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+          color: rgba(255,255,255,0.9); padding: 12px 14px;
+          background: ${navy}; font-weight: 500;
+        }
+        .ptable th:first-child { border-radius: 10px 0 0 0; }
+        .ptable th:last-child { border-radius: 0 10px 0 0; }
+        .ptable td { padding: 6px 4px; border-bottom: 1px solid ${border}; vertical-align: middle; }
+        .ptable tbody tr { transition: background 0.12s; }
+        .ptable tbody tr:hover td { background: #f5f7ff; }
+        .ptable select {
+          border: none; background: transparent; padding: 8px 10px;
+          font-family: inherit; font-size: 13px; outline: none;
+          cursor: pointer; width: 100%; color: ${text};
+        }
+
+        .abtn {
+          padding: 10px 22px; border: 1.5px solid ${border};
+          background: transparent; color: ${text}; border-radius: 10px;
+          font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+          cursor: pointer; transition: all 0.2s; white-space: nowrap;
+        }
+        .abtn:hover { border-color: ${navy}; color: ${navy}; background: #eef1fd; }
+        .abtn.prim {
+          background: linear-gradient(135deg, ${navy} 0%, ${navyDark} 100%);
+          color: #fff; border-color: transparent;
+        }
+        .abtn.prim:hover { background: linear-gradient(135deg, ${navyBlue} 0%, ${navy} 100%); }
+        .abtn.gold {
+          background: linear-gradient(135deg, ${gold} 0%, ${goldLight} 100%);
+          color: #fff; border-color: transparent; font-weight: 600;
+        }
+        .abtn.gold:hover { box-shadow: 0 4px 16px rgba(184,149,42,0.35); transform: translateY(-1px); }
+        .abtn.danger { border-color: #fecdd3; color: ${rose}; }
+        .abtn.danger:hover { background: ${roseL}; border-color: ${rose}; }
+
+        button:focus-visible { outline: 2px solid ${gold}; outline-offset: 3px; }
+        input:focus-visible, select:focus-visible { outline: none; }
+
+        .card {
+          background: ${surface}; border-radius: 20px;
+          box-shadow: ${shadowMd}; padding: 32px 32px 28px; margin-bottom: 16px;
+          transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+        .card:hover { box-shadow: ${shadowLg}; transform: translateY(-2px); }
+
+        .sec-pill {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 5px 14px 5px 6px; border-radius: 100px; margin-bottom: 14px;
+          background: linear-gradient(135deg, rgba(26,36,114,0.07), rgba(26,36,114,0.04));
+          border: 1px solid rgba(26,36,114,0.12);
+        }
+        .sec-pill-num {
+          width: 24px; height: 24px; border-radius: 50%;
+          background: linear-gradient(135deg, ${navy}, ${navyDark});
+          display: flex; align-items: center; justify-content: center;
+          font-family: 'DM Mono', monospace; font-size: 10px; color: #fff; font-weight: 500;
+        }
+        .sec-pill-lbl {
+          font-family: 'DM Mono', monospace; font-size: 10px;
+          letter-spacing: 0.14em; text-transform: uppercase; color: ${navy}; font-weight: 500;
+        }
+
+        .sec-heading {
+          font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700;
+          color: ${text}; letter-spacing: -0.01em; margin-bottom: 24px; line-height: 1.2;
+        }
+
+        .metric-card {
+          background: ${surface}; border-radius: 16px; padding: 22px 20px;
+          box-shadow: ${shadowMd}; transition: all 0.25s; position: relative; overflow: hidden;
+        }
+        .metric-card::after {
+          content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+          height: 3px; background: linear-gradient(90deg, ${gold}, ${goldLight});
+          transform: scaleX(0); transform-origin: left;
+          transition: transform 0.3s ease;
+        }
+        .metric-card:hover { box-shadow: ${shadowLg}; transform: translateY(-3px); }
+        .metric-card:hover::after { transform: scaleX(1); }
+
+        .gap-fill { transition: width 0.9s cubic-bezier(0.34, 1.4, 0.64, 1); }
+
+        .ring-circle {
+          transition: stroke-dashoffset 1.1s cubic-bezier(0.34, 1.2, 0.64, 1);
+        }
+
+        .modal-back {
+          position: fixed; inset: 0; background: rgba(17,24,80,0.45);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 200; padding: 20px; backdrop-filter: blur(10px);
+        }
+        .modal-box {
+          background: ${surface}; border-radius: 24px; padding: 40px;
+          max-width: 440px; width: 100%;
+          box-shadow: 0 24px 64px rgba(26,36,114,0.18);
+        }
+
+        .chart-tip {
+          position: absolute; background: ${navyDark}; color: #fff;
+          padding: 12px 16px; font-size: 12px; line-height: 1.7;
+          pointer-events: none; white-space: nowrap; z-index: 10;
+          transform: translateX(-50%); border-radius: 12px;
+          font-family: 'DM Mono', monospace;
+          box-shadow: 0 8px 24px rgba(17,24,80,0.3);
+        }
+        .chart-tip::after {
+          content: ''; position: absolute; bottom: -6px; left: 50%;
+          transform: translateX(-50%);
+          border: 6px solid transparent; border-bottom: none;
+          border-top-color: ${navyDark};
+        }
+
+        .sticky-bar {
+          position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+          background: rgba(255,255,255,0.96); backdrop-filter: blur(16px);
+          border-bottom: 1px solid ${border};
+          box-shadow: 0 2px 16px rgba(26,36,114,0.08);
+          transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.35s;
+        }
+
+        .toggle-pill {
+          display: inline-flex; background: #eef0f8; border-radius: 100px; padding: 4px;
+        }
+        .toggle-pill button {
+          padding: 8px 18px; border-radius: 100px; border: none; cursor: pointer;
+          font-family: 'DM Sans', sans-serif; font-size: 13px;
+          transition: all 0.22s ease;
+          background: transparent; color: ${muted}; font-weight: 400;
+        }
+        .toggle-pill button[aria-pressed="true"] {
+          background: ${navy}; color: #fff; font-weight: 600;
+          box-shadow: 0 2px 8px rgba(26,36,114,0.25);
+        }
+        .toggle-pill button[aria-pressed="false"]:hover { color: ${navy}; background: rgba(26,36,114,0.06); }
+
+        @media (max-width: 640px) {
+          .card { padding: 20px 18px; border-radius: 16px; }
+          .hdr-row { flex-direction: column !important; }
+          .mg { grid-template-columns: 1fr 1fr !important; }
+          .sig { grid-template-columns: 1fr !important; }
+          .ba { grid-template-columns: 1fr !important; }
+          .ba-arr { display: none !important; }
+          .sticky-bar { display: none; }
+        }
+        @media (max-width: 480px) { .mg { grid-template-columns: 1fr !important; } }
+        @media (prefers-reduced-motion: reduce) {
+          .gap-fill, .card, .metric-card, .ring-circle, * { transition-duration: 0.001ms !important; }
+        }
+      `}</style>
+
+      {/* ── STICKY METRICS BAR ── */}
+      <div className="sticky-bar" style={{ transform: stickyVisible ? "translateY(0)" : "translateY(-110%)", opacity: stickyVisible ? 1 : 0 }} aria-hidden={!stickyVisible}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", height: 56, gap: 24 }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 15, color: navy, flexShrink: 0 }}>
+            Retirement Planner
+          </span>
+          <div style={{ flex: 1 }} />
+          {[
+            { l: "Expenses at 65", v: fmt(results.firstYearMonthlyExpense) + "/mo" },
+            { l: "CPF Payout", v: fmt(results.cpfStartPayout) + "/mo" },
+            { l: results.cumulativeShortfall > 0 ? "Shortfall" : "Status", v: results.cumulativeShortfall > 0 ? fmt(results.cumulativeShortfall) : "On Track ✓" },
+          ].map(({ l, v }) => (
+            <div key={l} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+              <span style={{ fontSize: 10, color: muted, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em", textTransform: "uppercase" }}>{l}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: navy }}>{v}</span>
+            </div>
+          ))}
+          <button className="abtn gold" style={{ padding: "8px 18px", fontSize: 12 }} onClick={exportPDF}>Export PDF</button>
+        </div>
+      </div>
+
+      {/* ── TOP NAV ── */}
+      <nav style={{ background: surface, borderBottom: `1px solid ${border}`, padding: "0 24px", position: "sticky", top: 0, zIndex: 50, boxShadow: shadowSm }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", height: 60, gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <svg width="32" height="32" viewBox="0 0 40 40" fill="none" aria-label="DP Organisation">
+              <circle cx="20" cy="20" r="20" fill={navy}/>
+              <text x="20" y="25" textAnchor="middle" fill={goldLight} fontSize="14" fontFamily="Georgia, serif" fontWeight="700">DP</text>
+            </svg>
+            <div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 15, color: navy, lineHeight: 1.1 }}>Dream Planners</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Great Eastern Financial Advisers</div>
+            </div>
+          </div>
+          <div style={{ flex: 1 }} />
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: muted, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+            Retirement Planning Tool
+          </div>
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
+      <div style={{ background: `linear-gradient(135deg, ${navyDark} 0%, ${navy} 55%, ${navyBlue} 100%)`, position: "relative", overflow: "hidden" }}>
+        {/* Decorative rings */}
+        <svg style={{ position: "absolute", right: -80, top: -80, pointerEvents: "none" }} width="520" height="520" viewBox="0 0 520 520" aria-hidden="true">
+          <circle cx="260" cy="260" r="220" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1.5"/>
+          <circle cx="260" cy="260" r="170" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
+          <circle cx="260" cy="260" r="120" fill="none" stroke={goldPale} strokeOpacity="0.08" strokeWidth="1"/>
+          <circle cx="260" cy="260" r="260" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1"/>
+        </svg>
+        <svg style={{ position: "absolute", left: -60, bottom: -100, pointerEvents: "none" }} width="380" height="380" viewBox="0 0 380 380" aria-hidden="true">
+          <circle cx="190" cy="190" r="160" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1.5"/>
+          <circle cx="190" cy="190" r="100" fill="none" stroke={goldPale} strokeOpacity="0.06" strokeWidth="1"/>
+        </svg>
+        {/* Gold accent line */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent 0%, ${gold} 30%, ${goldLight} 50%, ${gold} 70%, transparent 100%)` }} />
+
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "52px 28px 44px", position: "relative", zIndex: 1 }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: "0.22em", color: goldPale, textTransform: "uppercase", marginBottom: 18, opacity: 0.85 }}>
+            Great Eastern Financial Advisers
+          </div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(36px, 5.5vw, 62px)", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.02em", lineHeight: 1.04, marginBottom: 0 }}>
+            Retirement Shortfall
+          </h1>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(36px, 5.5vw, 62px)", fontWeight: 400, fontStyle: "italic", color: gold, letterSpacing: "-0.02em", lineHeight: 1.04, marginBottom: 28 }}>
+            Analysis
+          </h1>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.65)", lineHeight: 1.7, maxWidth: 520, marginBottom: 36 }}>
+            A clear, jargon-free picture of your retirement readiness — powered by your actual CPF, insurance, and savings data.
+          </p>
+
+          {/* Client controls */}
+          <div className="hdr-row" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <input className="ci" placeholder="Client name…" value={clientName}
+              onChange={(e) => setClientName(e.target.value)} aria-label="Client name"
+              style={{ flex: "1 1 200px", fontSize: 14, padding: "13px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", color: "#fff", borderRadius: 12, minWidth: 180, fontFamily: "'DM Sans', sans-serif" }} />
+            <input className="ci" placeholder="DOB (optional)" value={clientDOB}
+              onChange={(e) => setClientDOB(e.target.value)} aria-label="Date of birth"
+              style={{ flex: "0 1 160px", fontSize: 13, padding: "13px 18px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", color: "#fff", borderRadius: 12, fontFamily: "'DM Sans', sans-serif" }} />
+            {Object.keys(savedClients).length > 0 && (
+              <select value={selectedClient} onChange={(e) => { if (e.target.value) loadClient(e.target.value); }}
+                aria-label="Load saved client"
+                style={{ padding: "13px 16px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, fontSize: 13, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", color: "#fff" }}>
+                <option value="">Load saved…</option>
+                {Object.keys(savedClients).map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            )}
+            {[["Save", () => setShowSaveModal(true), ""], ["New", newClient, ""], ...(selectedClient ? [["Delete", () => deleteClient(selectedClient), "danger"]] : [])].map(([lbl, fn, cls]) => (
+              <button key={lbl} onClick={fn}
+                style={{ padding: "13px 20px", background: "rgba(255,255,255,0.1)", border: `1px solid ${cls === "danger" ? "#fca5a5" : "rgba(255,255,255,0.2)"}`, color: cls === "danger" ? "#fca5a5" : "#fff", borderRadius: 12, fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}>
+                {lbl}
+              </button>
+            ))}
+            <button className="abtn gold" onClick={exportPDF} style={{ padding: "13px 24px", borderRadius: 12, fontSize: 14 }}>
+              Export PDF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── SAVE MODAL ── */}
+      {showSaveModal && (
+        <div className="modal-back" onClick={() => setShowSaveModal(false)} role="dialog" aria-modal="true" aria-label="Save client">
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: gold, marginBottom: 10 }}>Save client</div>
+            <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, color: text, margin: "0 0 20px" }}>Name this record</h3>
+            <input className="ci" placeholder={clientName || "Client name"} value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              style={{ border: `1.5px solid ${border}`, borderRadius: 10, background: bg, padding: "12px 14px", fontSize: 14, marginBottom: 16, width: "100%", display: "block", outline: "none" }}
+              autoFocus />
+            {savedClients[saveName || clientName] && (
+              <div style={{ fontSize: 12, color: rose, marginBottom: 14, fontStyle: "italic" }}>This will overwrite the existing record.</div>
+            )}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className="abtn" onClick={() => setShowSaveModal(false)}>Cancel</button>
+              <button className="abtn prim" onClick={saveClient}>Save record</button>
+            </div>
+            <div style={{ fontSize: 11, color: muted, marginTop: 18, fontStyle: "italic", lineHeight: 1.6 }}>
+              Records are held in browser memory — export PDF for a permanent copy.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MAIN CONTENT ── */}
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 20px 60px" }}>
+
+        {/* ── 01 PROFILE ── */}
+        <div className="card">
+          <div className="sec-pill"><div className="sec-pill-num">01</div><span className="sec-pill-lbl">Profile</span></div>
+          <h2 className="sec-heading">Client parameters</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 32 }}>
+            <DPGSlider label="Current Age" value={currentAge} setValue={setCurrentAge} min={25} max={70} suffix=" yrs" navy={navy} gold={gold} muted={muted} border={border} />
+            <DPGSlider label="Retirement Age" value={retirementAge} setValue={setRetirementAge} min={55} max={75} suffix=" yrs" navy={navy} gold={gold} muted={muted} border={border} />
+            <DPGSlider label="Life Expectancy" value={lifeExpectancy} setValue={setLifeExpectancy} min={70} max={100} suffix=" yrs" navy={navy} gold={gold} muted={muted} border={border} />
+            <DPGSlider label="Monthly Expenses" value={monthlyExpense} setValue={setMonthlyExpense} min={1500} max={15000} step={100} prefix="S$" navy={navy} gold={gold} muted={muted} border={border} />
+            <DPGSlider label="Inflation Rate" value={inflationRate} setValue={setInflationRate} min={0} max={5} step={0.1} suffix="%" navy={navy} gold={gold} muted={muted} border={border} />
+          </div>
+        </div>
+
+        {/* ── 02 CPF LIFE ── */}
+        <div className="card">
+          <div className="sec-pill"><div className="sec-pill-num">02</div><span className="sec-pill-lbl">CPF LIFE</span></div>
+          <h2 className="sec-heading">Target retirement sum</h2>
+
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 12 }}>Retirement Sum Tier</div>
+            <div className="toggle-pill">
+              {Object.keys(CPF_TIERS).map((key) => (
+                <button key={key} aria-pressed={tier === key} onClick={() => setTier(key)}>
+                  {key} · {fmt(CPF_TIERS[key].sum)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 12 }}>CPF LIFE Plan</div>
+            <div className="toggle-pill">
+              <button aria-pressed={cpfPlan === "standard"} onClick={() => setCpfPlan("standard")}>Standard · Level Payout</button>
+              <button aria-pressed={cpfPlan === "escalating"} onClick={() => setCpfPlan("escalating")}>Escalating · +2% p.a.</button>
+            </div>
+          </div>
+
+          <div style={{ padding: "16px 20px", background: `linear-gradient(135deg, ${goldPale}, #faf3df)`, borderRadius: 12, borderLeft: `4px solid ${gold}`, fontSize: 14, color: text, lineHeight: 1.7 }}>
+            <strong style={{ color: navy }}>{CPF_TIERS[tier].label}</strong> —{" "}
+            {cpfPlan === "escalating"
+              ? <>starts at <strong>{fmt(CPF_TIERS[tier].payout * ESCALATING_START_RATIO)}/month</strong> at age 65, growing 2% per year.</>
+              : <>estimated <strong>{fmt(CPF_TIERS[tier].payout)}/month</strong> from age 65, level for life.</>}
+          </div>
+        </div>
+
+        {/* ── 03 INSURANCE ── */}
+        <div className="card">
+          <div className="sec-pill"><div className="sec-pill-num">03</div><span className="sec-pill-lbl">Insurance</span></div>
+          <h2 className="sec-heading">Existing policies</h2>
+          <div style={{ overflowX: "auto", marginBottom: 14, WebkitOverflowScrolling: "touch" }}>
+            <table className="ptable">
+              <thead>
+                <tr>
+                  {["Policy", "Type", "Annual Premium", "Cash Value", "Maturity Age", "Payout Type", "Projected Payout", ""].map((h) => (
+                    <th key={h} style={{ minWidth: h === "" ? 44 : h === "Policy" ? 140 : 100 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {policies.map((p) => (
+                  <tr key={p.id}>
+                    <td><input className="ci" placeholder="e.g. GE Flexi Retire" value={p.name} onChange={(e) => updatePolicy(p.id, "name", e.target.value)} /></td>
+                    <td><select value={p.type} onChange={(e) => updatePolicy(p.id, "type", e.target.value)}>
+                      <option>Endowment</option><option>Annuity</option><option>ILP</option>
+                      <option>Whole Life</option><option>Term</option><option>Retirement</option>
+                    </select></td>
+                    <td><input type="number" className="ci" value={p.annualPremium} onChange={(e) => updatePolicy(p.id, "annualPremium", e.target.value)} /></td>
+                    <td><input type="number" className="ci" value={p.cashValue} onChange={(e) => updatePolicy(p.id, "cashValue", e.target.value)} /></td>
+                    <td><input type="number" className="ci" value={p.maturityAge} onChange={(e) => updatePolicy(p.id, "maturityAge", e.target.value)} /></td>
+                    <td><select value={p.payoutType} onChange={(e) => updatePolicy(p.id, "payoutType", e.target.value)}>
+                      <option value="lump">Lump Sum</option><option value="monthly">Monthly</option>
+                    </select></td>
+                    <td>{p.payoutType === "lump"
+                      ? <input type="number" className="ci" placeholder="Total" value={p.projectedPayout} onChange={(e) => updatePolicy(p.id, "projectedPayout", e.target.value)} />
+                      : <div style={{ display: "flex", gap: 4 }}>
+                          <input type="number" className="ci" placeholder="$/mo" value={p.monthlyPayout} onChange={(e) => updatePolicy(p.id, "monthlyPayout", e.target.value)} style={{ width: "55%" }} />
+                          <input type="number" className="ci" placeholder="yrs" value={p.payoutYears} onChange={(e) => updatePolicy(p.id, "payoutYears", e.target.value)} style={{ width: "40%" }} />
+                        </div>}
+                    </td>
+                    <td><button className="ib" onClick={() => removePolicy(p.id)} aria-label="Remove policy">×</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button className="ab" onClick={addPolicy}>+ Add policy</button>
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${border}`, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
+            {[["Total Annual Premium", fmt(results.totalAnnualPremium)], ["Total Cash Value", fmt(results.totalCashValue)], ["Lump Sum Payouts", fmt(results.totalLumpPayouts)], ["No. of Policies", policies.length]].map(([lbl, val]) => (
+              <DPGRollup key={lbl} label={lbl} value={val} navy={navy} muted={muted} gold={gold} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── 04 SAVINGS & INVESTMENTS ── */}
+        <div className="card">
+          <div className="sec-pill"><div className="sec-pill-num">04</div><span className="sec-pill-lbl">Savings & Investments</span></div>
+          <h2 className="sec-heading">Asset buckets</h2>
+          <div style={{ overflowX: "auto", marginBottom: 14, WebkitOverflowScrolling: "touch" }}>
+            <table className="ptable">
+              <thead>
+                <tr>
+                  {["Bucket", "Amount (today)", "Return p.a.", `Value at ${retirementAge}`, ""].map((h) => (
+                    <th key={h} style={{ minWidth: h === "" ? 44 : h === "Bucket" ? 180 : 130 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {buckets.map((b) => {
+                  const yrs = Math.max(0, retirementAge - currentAge);
+                  const fv = (parseFloat(b.amount) || 0) * Math.pow(1 + (parseFloat(b.returnRate) || 0) / 100, yrs);
+                  return (
+                    <tr key={b.id}>
+                      <td><input className="ci" value={b.name} onChange={(e) => updateBucket(b.id, "name", e.target.value)} /></td>
+                      <td><input type="number" className="ci" value={b.amount} onChange={(e) => updateBucket(b.id, "amount", e.target.value)} /></td>
+                      <td><input type="number" step="0.1" className="ci" value={b.returnRate} onChange={(e) => updateBucket(b.id, "returnRate", e.target.value)} /></td>
+                      <td style={{ padding: "8px 14px", color: green, fontWeight: 700, fontFamily: "'DM Mono', monospace", fontSize: 13 }}>{fmt(fv)}</td>
+                      <td><button className="ib" onClick={() => removeBucket(b.id)} aria-label="Remove bucket">×</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <button className="ab" onClick={addBucket}>+ Add bucket</button>
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${border}`, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
+            {[["Total Today", fmt(buckets.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0))], [`Total at Age ${retirementAge}`, fmt(results.totalBucketsFV)], ["Blended Return", `${results.blendedReturn.toFixed(1)}%`]].map(([lbl, val]) => (
+              <DPGRollup key={lbl} label={lbl} value={val} navy={navy} muted={muted} gold={gold} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── 05 HEADLINE METRICS ── */}
+        <div className="mg" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
+          {[
+            { label: "Expenses at Retirement", value: fmt(results.firstYearMonthlyExpense), sub: `/ month · age ${retirementAge}`, color: navy, bg: "linear-gradient(135deg, #eef1fd, #e8ecfa)" },
+            { label: "CPF LIFE Payout (Yr 1)", value: fmt(results.cpfStartPayout), sub: cpfPlan === "escalating" ? "grows +2%/yr" : "level for life", color: green, bg: greenL },
+            { label: "CPF Coverage", value: `${Math.round(results.coveragePct)}%`, sub: "of first-year expense", color: results.coveragePct < 50 ? rose : results.coveragePct >= 100 ? green : gold, bg: results.coveragePct < 50 ? roseL : results.coveragePct >= 100 ? greenL : goldPale },
+            { label: "Savings at Retirement", value: fmt(results.totalBucketsFV + results.totalLumpPayouts), sub: "incl. insurance lump sums", color: green, bg: greenL },
+          ].map((m) => (
+            <div key={m.label} className="metric-card" style={{ background: m.bg }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: muted, marginBottom: 12 }}>{m.label}</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, fontWeight: 700, color: m.color, letterSpacing: "-0.025em", lineHeight: 1 }}>{m.value}</div>
+              <div style={{ fontSize: 12, color: muted, marginTop: 8, fontStyle: "italic" }}>{m.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── 06 PROJECTION CHART ── */}
+        <div className="card">
+          <div className="sec-pill"><div className="sec-pill-num">05</div><span className="sec-pill-lbl">Projection</span></div>
+          <h2 className="sec-heading">Monthly expenses vs. guaranteed income</h2>
+          <div style={{ position: "relative", marginBottom: 10 }}>
+            <svg viewBox="0 0 1000 270" preserveAspectRatio="none"
+              style={{ width: "100%", height: 230, display: "block" }}
+              role="img" aria-label={`Retirement projection from age ${retirementAge} to ${lifeExpectancy}`}>
+              <defs>
+                <linearGradient id="gNeed" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={rose} stopOpacity="0.35" />
+                  <stop offset="100%" stopColor={rose} stopOpacity="0.04" />
+                </linearGradient>
+                <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={green} stopOpacity="0.75" />
+                  <stop offset="100%" stopColor={green} stopOpacity="0.12" />
+                </linearGradient>
+                <linearGradient id="gGrid" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={navy} stopOpacity="0.04" />
+                  <stop offset="100%" stopColor={navy} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {/* Grid */}
+              {[0.25, 0.5, 0.75].map((p) => (
+                <line key={p} x1="0" y1={270 * (1 - p * 0.9)} x2="1000" y2={270 * (1 - p * 0.9)} stroke={border} strokeWidth="1" strokeDasharray="4,6" />
+              ))}
+              {/* Areas */}
+              {chartPaths.needPath && <path d={chartPaths.needPath} fill="url(#gNeed)" />}
+              {chartPaths.incomePath && <path d={chartPaths.incomePath} fill="url(#gInc)" />}
+              {/* Lines */}
+              {chartPaths.needLine && <polyline points={chartPaths.needLine} fill="none" stroke={rose} strokeWidth="2.5" strokeLinejoin="round" />}
+              {chartPaths.incomeLine && <polyline points={chartPaths.incomeLine} fill="none" stroke={green} strokeWidth="2" strokeLinejoin="round" />}
+              {/* Hover zones */}
+              {results.chartData.map((d, i) => {
+                const n = results.chartData.length;
+                const segW = n > 1 ? 1000 / (n - 1) : 1000;
+                const cx = n > 1 ? (i / (n - 1)) * 1000 : 500;
+                return <rect key={i} x={Math.max(0, cx - segW / 2)} y={0} width={segW} height={270} fill="transparent" style={{ cursor: "crosshair" }} onMouseEnter={() => setChartHover(i)} onMouseLeave={() => setChartHover(null)} />;
+              })}
+              {/* Hover markers */}
+              {chartHover !== null && chartPaths.pts[chartHover] && (<>
+                <line x1={chartPaths.pts[chartHover].x} y1={0} x2={chartPaths.pts[chartHover].x} y2={270} stroke={gold} strokeWidth="1.5" strokeDasharray="3,4" opacity="0.7" />
+                <circle cx={chartPaths.pts[chartHover].x} cy={chartPaths.pts[chartHover].yNeed} r={5} fill={rose} stroke="#fff" strokeWidth="2.5" />
+                <circle cx={chartPaths.pts[chartHover].x} cy={chartPaths.pts[chartHover].yIncome} r={4.5} fill={green} stroke="#fff" strokeWidth="2.5" />
+              </>)}
+            </svg>
+            {chartHover !== null && results.chartData[chartHover] && (() => {
+              const d = results.chartData[chartHover];
+              const n = results.chartData.length;
+              const pct = n > 1 ? (chartHover / (n - 1)) * 100 : 50;
+              return (
+                <div className="chart-tip" style={{ position: "absolute", bottom: "calc(100% - 200px)", left: `${Math.min(Math.max(pct, 10), 88)}%` }}>
+                  <div style={{ fontWeight: 700, color: goldLight, marginBottom: 4 }}>Age {d.age}</div>
+                  <div>Need: <strong>{fmt(d.need)}/mo</strong></div>
+                  <div style={{ color: "rgba(255,255,255,0.65)" }}>CPF: {fmt(d.cpf)}/mo</div>
+                  {d.insurance > 0 && <div style={{ color: "rgba(255,255,255,0.65)" }}>Insurance: {fmt(d.insurance)}/mo</div>}
+                  {d.uncovered > 0 && <div style={{ color: "#fbbf24" }}>Gap: {fmt(d.uncovered)}/mo</div>}
+                </div>
+              );
+            })()}
+          </div>
+          <div style={{ fontFamily: "'DM Mono', monospace", display: "flex", justifyContent: "space-between", fontSize: 10, color: muted, borderTop: `1px solid ${border}`, paddingTop: 10, marginTop: 4 }}>
+            <span>Age {retirementAge}</span><span>Age {lifeExpectancy}</span>
+          </div>
+          <div style={{ display: "flex", gap: 24, marginTop: 14, flexWrap: "wrap" }}>
+            {[[rose, "Monthly expenses (inflation-adjusted)"], [green, "CPF LIFE + insurance monthly payouts"]].map(([c, l]) => (
+              <div key={l} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 12, height: 12, background: c, borderRadius: 3, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: muted }}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── 06 ANALYSIS ── */}
+        <div style={{
+          background: `linear-gradient(135deg, ${navyDark} 0%, ${navy} 60%, ${navyBlue} 100%)`,
+          borderRadius: 20, color: "#fff", padding: "40px 40px 36px", marginBottom: 16,
+          position: "relative", overflow: "hidden",
+          boxShadow: "0 16px 56px rgba(17,24,80,0.22)",
+        }}>
+          {/* Decorative */}
+          <svg style={{ position: "absolute", right: -40, bottom: -40, pointerEvents: "none" }} width="260" height="260" viewBox="0 0 260 260" aria-hidden="true">
+            <circle cx="130" cy="130" r="110" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1.5"/>
+            <circle cx="130" cy="130" r="70" fill="none" stroke={goldPale} strokeOpacity="0.07" strokeWidth="1"/>
+          </svg>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${gold} 0%, ${goldLight} 50%, ${gold} 100%)` }} />
+
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: goldLight, marginBottom: 14, opacity: 0.85 }}>06 · Analysis</div>
+
+          {results.cumulativeShortfall > 0 ? (<>
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", marginBottom: 6, fontStyle: "italic" }}>Total projected shortfall across retirement</div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(42px, 7vw, 72px)", fontWeight: 800, color: gold, letterSpacing: "-0.03em", lineHeight: 1, marginBottom: 16 }}>
+              {fmt(results.cumulativeShortfall)}
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.8, color: "rgba(255,255,255,0.6)", maxWidth: 680, marginBottom: 32 }}>
+              Across {results.yearsInRetirement} years of retirement, your guaranteed income and savings fall short by this amount. Here's what it takes to close the gap:
+            </p>
+
+            <div className="sig" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginBottom: 28 }}>
+              {[
+                { title: "Lump Sum Today", sub: "Invest once · 6% p.a.", val: fmt(results.lumpSumToday), note: `Grows to ${fmt(results.cumulativeShortfall)} by age ${retirementAge}` },
+                { title: "Monthly Top-Up", sub: `${results.yearsToRetirement} years · 6% p.a.`, val: fmt(results.monthlyTopUp), note: "Regular contribution until retirement" },
+              ].map((sc) => (
+                <div key={sc.title} style={{ background: "rgba(255,255,255,0.07)", border: `1px solid rgba(255,255,255,0.12)`, padding: "24px 26px", borderRadius: 16, backdropFilter: "blur(4px)" }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: goldLight, marginBottom: 4, opacity: 0.8 }}>{sc.title}</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{sc.sub}</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 4vw, 42px)", fontWeight: 700, letterSpacing: "-0.025em", lineHeight: 1, marginBottom: 10 }}>{sc.val}</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontStyle: "italic" }}>{sc.note}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", padding: "20px 24px", borderRadius: 14 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 14 }}>Sensitivity · different return assumptions</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse", minWidth: 340 }}>
+                  <thead>
+                    <tr>
+                      {["Return p.a.", "Lump Sum Today", "Monthly Top-Up"].map((h, j) => (
+                        <th key={h} style={{ textAlign: j === 0 ? "left" : "right", padding: "6px 12px 10px", fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", fontWeight: 500, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[["4%", results.scenarios.four, false], ["6% ★", results.scenarios.six, true], ["8%", results.scenarios.eight, false]].map(([label, s, hi]) => (
+                      <tr key={label} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: hi ? `rgba(184,149,42,0.14)` : "transparent" }}>
+                        <td style={{ padding: "12px 12px 12px 0", fontFamily: "'DM Mono', monospace", color: hi ? goldLight : "rgba(255,255,255,0.65)", fontWeight: hi ? 700 : 400 }}>{label}</td>
+                        <td style={{ padding: "12px", textAlign: "right", color: hi ? "#fff" : "rgba(255,255,255,0.55)", fontWeight: hi ? 700 : 400 }}>{fmt(s.lump)}</td>
+                        <td style={{ padding: "12px 0 12px 12px", textAlign: "right", color: hi ? "#fff" : "rgba(255,255,255,0.55)", fontWeight: hi ? 700 : 400 }}>{fmt(s.monthly)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>) : (<>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 600, margin: "0 0 14px", lineHeight: 1.05, letterSpacing: "-0.02em" }}>
+              On track. <span style={{ fontStyle: "italic", color: goldLight }}>Current plan covers projected needs.</span>
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.8, color: "rgba(255,255,255,0.6)", maxWidth: 600, margin: 0 }}>
+              CPF LIFE + insurance + savings of {fmt(results.totalBucketsFV + results.totalLumpPayouts)} should fund {results.yearsInRetirement} years of retirement.
+            </p>
+          </>)}
+        </div>
+
+        {/* ── 07 INVESTMENT SIMULATOR ── */}
+        <div className="card">
+          <div className="sec-pill"><div className="sec-pill-num">07</div><span className="sec-pill-lbl">The Solution</span></div>
+          <h2 className="sec-heading">
+            Close the gap with a{" "}
+            <span style={{ fontStyle: "italic", color: gold }}>dividend-paying plan</span>
+          </h2>
+          <p style={{ fontSize: 14, lineHeight: 1.8, color: muted, maxWidth: 640, marginBottom: 32 }}>
+            A recommended investment tool pays approximately {simDividendRate}% p.a. dividends on policy value. Adjust the contribution below to see how much of the retirement shortfall it closes.
+          </p>
+
+          {/* Simulator inputs */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 28 }}>
+            {/* Amount */}
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 10 }}>
+                {simMode === "monthly" ? "Monthly Contribution" : "Annual Contribution"}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", background: bg, border: `1.5px solid ${border}`, borderRadius: 12, padding: "12px 16px", transition: "border-color 0.15s", cursor: "text" }}
+                onFocus={() => {}} onClick={(e) => e.currentTarget.querySelector("input")?.focus()}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: muted, marginRight: 8 }}>S$</span>
+                <input type="number" value={simContribution} onChange={(e) => setSimContribution(e.target.value)}
+                  style={{ background: "transparent", border: "none", outline: "none", color: navy, fontSize: 24, fontFamily: "'Playfair Display', serif", fontWeight: 700, width: "100%" }} />
+              </div>
+            </div>
+            {/* Mode */}
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 10 }}>Payment Mode</div>
+              <div className="toggle-pill">
+                {[["monthly","Monthly"],["yearly","Yearly"]].map(([v,l]) => (
+                  <button key={v} aria-pressed={simMode === v} onClick={() => setSimMode(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {/* Term */}
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 10 }}>Contribution Term</div>
+              <div className="toggle-pill">
+                {[[5,"5 Years"],[10,"10 Years"]].map(([v,l]) => (
+                  <button key={v} aria-pressed={simTerm === v} onClick={() => setSimTerm(v)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {/* Rate */}
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 10 }}>Dividend Rate p.a.</div>
+              <div style={{ display: "flex", alignItems: "center", background: bg, border: `1.5px solid ${border}`, borderRadius: 12, padding: "12px 16px" }}>
+                <input type="number" step="0.1" value={simDividendRate} onChange={(e) => setSimDividendRate(e.target.value)}
+                  style={{ background: "transparent", border: "none", outline: "none", color: navy, fontSize: 24, fontFamily: "'Playfair Display', serif", fontWeight: 700, width: "100%" }} />
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: muted, marginLeft: 6 }}>%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Dividend treatment */}
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 10 }}>Dividend Treatment</div>
+            <div className="toggle-pill">
+              {[["reinvest","Reinvest · Compound"],["cashout","Cash Out · Income"]].map(([v,l]) => (
+                <button key={v} aria-pressed={simDividendAction === v} onClick={() => setSimDividendAction(v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Metrics grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 28 }}>
+            {[
+              { label: "Total Contributed", value: fmt(simulation.totalContributed), sub: `Over ${simulation.term} yrs`, hi: false },
+              { label: `Policy Value · Yr ${simulation.term}`, value: fmt(simulation.finalPolicyValue), sub: simDividendAction === "reinvest" ? "Compounded" : "Base only", hi: true },
+              { label: "Monthly Dividend", value: fmt(simulation.postTermMonthlyDividend), sub: `${simDividendRate}% of policy value`, hi: true },
+              ...(simDividendAction === "cashout"
+                ? [{ label: "Cash Dividends", value: fmt(simulation.cumulativeCashDividends), sub: `During ${simulation.term}-yr term`, hi: false }]
+                : [{ label: "Annual Dividend", value: fmt(simulation.postTermAnnualDividend), sub: "Post-term, per year", hi: false }]),
+            ].map((m) => (
+              <div key={m.label} style={{
+                background: m.hi ? `linear-gradient(135deg, ${goldPale}, #faf3df)` : bg,
+                padding: "18px 20px", borderRadius: 14,
+                border: `1.5px solid ${m.hi ? gold : border}`,
+              }}>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: m.hi ? gold : muted, marginBottom: 8, fontWeight: 500 }}>{m.label}</div>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: m.hi ? navy : text, letterSpacing: "-0.02em" }}>{m.value}</div>
+                <div style={{ fontSize: 11, color: muted, marginTop: 5, fontStyle: "italic" }}>{m.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Year-by-year table */}
+          <div style={{ background: bg, border: `1.5px solid ${border}`, borderRadius: 16, padding: "20px 22px", marginBottom: 28 }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: muted, marginBottom: 16 }}>Year-by-year breakdown</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "separate", borderSpacing: 0, minWidth: 480 }}>
+                <thead>
+                  <tr>
+                    {["Year","Contributed","Dividend","Policy Value"].map((h,j) => (
+                      <th key={h} style={{ textAlign: j===0?"left":"right", padding: "10px 12px 12px", fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.9)", background: navy, fontWeight: 500 }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {simulation.yearlySnapshots.map((s, i) => (
+                    <tr key={s.year} style={{ background: i % 2 === 0 ? "transparent" : "rgba(26,36,114,0.02)", transition: "background 0.12s" }}>
+                      <td style={{ padding: "10px 12px", fontFamily: "'DM Mono', monospace", color: muted, borderBottom: `1px solid ${border}` }}>Yr {s.year}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", color: text, borderBottom: `1px solid ${border}` }}>{fmt(s.totalContributedToDate)}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", color: gold, fontWeight: 600, fontFamily: "'DM Mono', monospace", borderBottom: `1px solid ${border}` }}>{fmt(s.annualDividend)}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: navy, fontFamily: "'DM Mono', monospace", borderBottom: `1px solid ${border}` }}>{fmt(s.policyValue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── GAP CLOSURE ── */}
+          {results.cumulativeShortfall > 0 && (
+            <div style={{ background: `linear-gradient(135deg, ${navyDark} 0%, ${navy} 60%, ${navyBlue} 100%)`, borderRadius: 20, padding: "32px 36px", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${gold}, ${goldLight}, ${gold})` }} />
+              <svg style={{ position: "absolute", right: -20, top: -30, pointerEvents: "none" }} width="200" height="200" viewBox="0 0 200 200" aria-hidden="true">
+                <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="1.5"/>
+                <circle cx="100" cy="100" r="55" fill="none" stroke={goldPale} strokeOpacity="0.07" strokeWidth="1"/>
+              </svg>
+
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: goldLight, marginBottom: 10, opacity: 0.8 }}>Gap closure</div>
+              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 600, color: "#fff", margin: "0 0 28px", lineHeight: 1.2 }}>
+                How much of the shortfall does this close?
+              </h3>
+
+              {/* Progress ring + bar */}
+              <div style={{ display: "flex", gap: 32, alignItems: "center", marginBottom: 32, flexWrap: "wrap" }}>
+                {/* Ring */}
+                <div style={{ flexShrink: 0 }}>
+                  <svg width="130" height="130" viewBox="0 0 130 130" aria-label={`${Math.round(gapPct)}% of gap covered`}>
+                    <circle cx="65" cy="65" r={ringR} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10"/>
+                    <circle cx="65" cy="65" r={ringR} fill="none"
+                      stroke={gapPct >= 100 ? "#4ade80" : gold} strokeWidth="10"
+                      strokeDasharray={ringC} strokeDashoffset={ringOffset}
+                      strokeLinecap="round"
+                      className="ring-circle"
+                      style={{ transform: "rotate(-90deg)", transformOrigin: "65px 65px" }}
+                    />
+                    <text x="65" y="60" textAnchor="middle" style={{ fontFamily: "'Playfair Display', serif", fontSize: "26px", fontWeight: "700", fill: gapPct >= 100 ? "#4ade80" : goldLight }}>
+                      {Math.round(gapPct)}%
+                    </text>
+                    <text x="65" y="78" textAnchor="middle" style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", fill: "rgba(255,255,255,0.4)" }}>covered</text>
+                  </svg>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginBottom: 10 }}>
+                    {fmt(simulation.postTermMonthlyDividend)}/mo dividend vs. {fmt(simulation.firstYearMonthlyGap)}/mo gap
+                  </div>
+                  <div style={{ height: 10, background: "rgba(255,255,255,0.1)", borderRadius: 100, overflow: "hidden", marginBottom: 12 }}>
+                    <div className="gap-fill" style={{
+                      height: "100%", borderRadius: 100,
+                      width: `${Math.min(gapPct, 100)}%`,
+                      background: gapPct >= 100
+                        ? "linear-gradient(90deg, #22c55e, #4ade80)"
+                        : `linear-gradient(90deg, ${gold}, ${goldLight})`,
+                    }} />
+                  </div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(22px, 3vw, 32px)", fontWeight: 700, color: gapPct >= 100 ? "#4ade80" : goldLight, letterSpacing: "-0.02em" }}>
+                    {Math.round(gapPct)}% of monthly gap closed
+                  </div>
+                </div>
+              </div>
+
+              {/* Before / After */}
+              <div className="ba" style={{ display: "grid", gridTemplateColumns: "1fr 44px 1fr", gap: 12, alignItems: "center", marginBottom: 20 }}>
+                <div style={{ background: "rgba(159,18,57,0.18)", border: `1.5px solid rgba(159,18,57,0.45)`, padding: "22px 24px", borderRadius: 14 }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fca5a5", marginBottom: 6 }}>Before</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>Shortfall without this plan</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(22px, 3.5vw, 34px)", fontWeight: 800, color: "#fca5a5", letterSpacing: "-0.025em" }}>
+                    {fmt(results.cumulativeShortfall)}
+                  </div>
+                </div>
+                <div className="ba-arr" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="28" height="28" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                    <path d="M6 16h20M18 8l8 8-8 8" stroke={goldLight} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div style={{
+                  background: simulation.adjustedShortfall > 0 ? "rgba(22,101,52,0.2)" : "rgba(22,101,52,0.3)",
+                  border: `1.5px solid rgba(74,222,128,0.35)`, padding: "22px 24px", borderRadius: 14,
+                }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "#86efac", marginBottom: 6 }}>After</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>Remaining shortfall with dividends</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(22px, 3.5vw, 34px)", fontWeight: 800, color: simulation.adjustedShortfall > 0 ? "#86efac" : "#4ade80", letterSpacing: "-0.025em" }}>
+                    {simulation.adjustedShortfall > 0 ? fmt(simulation.adjustedShortfall) : "Fully covered"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lifetime banner */}
+              <div style={{ background: "rgba(255,255,255,0.05)", border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 14, padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1px 1fr", gap: 20, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 8 }}>
+                    Lifetime dividends · age {retirementAge}–{lifeExpectancy}
+                  </div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(20px, 3vw, 30px)", fontWeight: 700, color: gold }}>{fmt(simulation.lifetimeDividends)}</div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.08)", alignSelf: "stretch" }} />
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", marginBottom: 8 }}>Shortfall reduced by</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(20px, 3vw, 30px)", fontWeight: 700, color: goldLight }}>
+                    {Math.round(Math.min(100, (simulation.lifetimeDividends / results.cumulativeShortfall) * 100))}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: muted, marginTop: 20, lineHeight: 1.7, fontStyle: "italic" }}>
+            Illustration assumes policy value does not appreciate or depreciate. Dividends are projected at {simDividendRate}% p.a. and are not guaranteed.
+          </div>
+        </div>
+
+        {/* ── FOOTNOTE ── */}
+        <div style={{ fontSize: 11.5, lineHeight: 1.8, color: muted, fontStyle: "italic", paddingTop: 24, borderTop: `1px solid ${border}` }}>
+          Figures based on CPF Board 2026 retirement sums and CPF LIFE payout estimates for members turning 55 in 2026. Escalating Plan assumed to start ~20% lower than Standard, growing 2% p.a. Insurance and investment returns are projected based on client inputs — actual returns not guaranteed. Inflation applied to expenses only. This is a planning illustration and does not constitute a formal needs analysis or product recommendation. Prepared by Jason Ng, DP Organisation · Great Eastern Financial Advisers · IAC 1220629.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── HELPER COMPONENTS ─────────────────────────────────────────────────────────
+
+function DPGSlider({ label, value, setValue, min, max, step = 1, prefix = "", suffix = "", navy, gold, muted, border }) {
+  const [active, setActive] = useState(false);
+  const id = `s-${label.replace(/\s+/g, "-").toLowerCase()}`;
+  const pct = ((value - min) / (max - min)) * 100;
+  const fmtVal = (v) => prefix + (typeof v === "number" && v >= 1000 ? v.toLocaleString("en-SG") : v) + suffix;
+  return (
+    <div>
+      <label htmlFor={id} style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, display: "block", marginBottom: 4 }}>{label}</label>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: navy, lineHeight: 1.1, margin: "4px 0 0" }}>
+        {fmtVal(value)}
+      </div>
+      <div style={{ position: "relative", paddingTop: 2 }}>
+        {active && (
+          <div style={{
+            position: "absolute", top: -2, left: `clamp(18px, calc(${pct}% - 12px), calc(100% - 54px))`,
+            background: navy, color: "#fff", padding: "4px 10px", borderRadius: 8,
+            fontSize: 11, fontFamily: "'DM Mono', monospace", whiteSpace: "nowrap",
+            pointerEvents: "none", boxShadow: "0 3px 10px rgba(26,36,114,0.25)",
+            zIndex: 5,
+          }}>
+            {fmtVal(value)}
+          </div>
+        )}
+        <input
+          id={id} type="range" min={min} max={max} step={step} value={value}
+          onChange={(e) => {
+            const v = step % 1 !== 0 ? parseFloat(e.target.value) : parseInt(e.target.value);
+            setValue(v);
+          }}
+          onMouseDown={() => setActive(true)}
+          onMouseUp={() => setActive(false)}
+          onTouchStart={() => setActive(true)}
+          onTouchEnd={() => setActive(false)}
+          aria-label={label}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: muted, fontFamily: "'DM Mono', monospace" }}>
+          <span>{fmtVal(min)}</span>
+          <span>{fmtVal(max)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DPGRollup({ label, value, navy, muted, gold }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: muted, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, letterSpacing: "-0.015em", color: navy }}>{value}</div>
+    </div>
+  );
+}
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<CPFRetirementPlanner />);
+  </script>
+</body>
+</html>
