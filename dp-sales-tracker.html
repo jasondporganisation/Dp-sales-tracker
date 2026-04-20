@@ -940,17 +940,16 @@ function loadLogTab() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 2).padStart(2, '0')}-01`;
   })();
-  const monthQ = db.collection('cases')
-    .where('agentIAC', '==', currentUser.iac)
-    .where('date', '>=', monthStartStr())
-    .where('date', '<', nextMonthStart);
+  // Filter dates client-side to avoid requiring a Firestore composite index
+  const monthStart = monthStartStr();
+  const monthQ = db.collection('cases').where('agentIAC', '==', currentUser.iac);
   const unsub2 = monthQ.onSnapshot(snap => {
-    // Filter out today's cases (shown separately above)
+    // Filter out today's cases (shown separately above), keep this month only
     const today = todayStr();
     const filtered = [];
     snap.forEach(d => {
       const data = { ...normalizeCase(d.data()), docId: d.id };
-      if (data.date !== today) filtered.push(data);
+      if (data.date !== today && data.date >= monthStart && data.date < nextMonthStart) filtered.push(data);
     });
     const el = document.getElementById('month-list');
     if (filtered.length === 0) {
@@ -1022,13 +1021,14 @@ function loadStats() {
     const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
     endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
   }
-  let q = db.collection('cases')
-    .where('agentIAC', '==', currentUser.iac)
-    .where('date', '>=', startDate);
-  if (endDate) q = q.where('date', '<=', endDate);
+  // Filter dates client-side to avoid requiring a Firestore composite index
+  const q = db.collection('cases').where('agentIAC', '==', currentUser.iac);
   const unsub = q.onSnapshot(snap => {
     const cases = [];
-    snap.forEach(d => cases.push(normalizeCase(d.data())));
+    snap.forEach(d => {
+      const c = normalizeCase(d.data());
+      if (c.date >= startDate && (!endDate || c.date <= endDate)) cases.push(c);
+    });
     renderStats(cases);
   }, err => console.error('loadStats:', err));
   activeUnsubs.push(unsub);
