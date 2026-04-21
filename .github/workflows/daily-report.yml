@@ -1,0 +1,17 @@
+name: Daily Sales Report
+
+on:
+  schedule:
+    - cron: '45 13 * * *'   # 9:45 PM SGT = 13:45 UTC
+  workflow_dispatch:          # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Send daily Telegram report
+        run: node scripts/send-report.js
