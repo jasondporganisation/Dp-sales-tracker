@@ -46,10 +46,17 @@ function buildReportText(cases) {
   const TYPES = ['Life', 'A&H', 'Investment'];
   const byType = {};
   TYPES.forEach(t => { byType[t] = { cases: 0, premium: 0 }; });
+  const invBySubtype = { RP: { cases: 0, premium: 0 }, SP: { cases: 0, lumpSum: 0 } };
   cases.forEach(c => {
     if (byType[c.caseType]) {
       byType[c.caseType].cases++;
       byType[c.caseType].premium += (Number(c.premium) || 0);
+    }
+    if (c.caseType === 'Investment') {
+      const sub = c.premType === 'SP' ? 'SP' : 'RP';
+      invBySubtype[sub].cases++;
+      if (sub === 'SP') invBySubtype.SP.lumpSum += Number(c.lumpSum) || 0;
+      else invBySubtype.RP.premium += Number(c.premium) || 0;
     }
   });
 
@@ -74,6 +81,12 @@ function buildReportText(cases) {
   TYPES.forEach(type => {
     const icon = type === 'Life' ? '🔵' : type === 'A&H' ? '🟢' : '🟣';
     t += `${icon} ${type}: ${byType[type].cases} case${byType[type].cases !== 1 ? 's' : ''} | ${fmtCurrency(byType[type].premium)}\n`;
+    if (type === 'Investment') {
+      if (invBySubtype.RP.cases > 0)
+        t += `   ├ RP: ${invBySubtype.RP.cases} case${invBySubtype.RP.cases !== 1 ? 's' : ''} | ${fmtCurrency(invBySubtype.RP.premium)}\n`;
+      if (invBySubtype.SP.cases > 0)
+        t += `   └ SP: ${invBySubtype.SP.cases} case${invBySubtype.SP.cases !== 1 ? 's' : ''} | ${fmtCurrency(invBySubtype.SP.lumpSum)} lump sum\n`;
+    }
   });
   t += `\n━━━━━━━━━━━━━━━━━━\n`;
   t += `👥 *AGENT BREAKDOWN*\n`;
