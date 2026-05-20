@@ -186,8 +186,8 @@ async function sendTelegram(text) {
 }
 
 async function main() {
-  const today = sgtDate();
-  const dayName = sgtDay();
+  const today = '2026-05-19'; // TEST — remove after testing
+  const dayName = 'Monday'; // TEST — remove after testing
   console.log(`Champ check for ${today} (${dayName})`);
 
   const dailyCases = await fetchCases(today);
