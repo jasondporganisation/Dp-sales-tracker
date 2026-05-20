@@ -6,21 +6,21 @@ const FIREBASE_API_KEY   = 'AIzaSyDeK-u4j1aSNqio8JUDui9g_XQBN0E9XPE';
 const PROJECT_ID         = 'dp-sales-tracker';
 
 const USERS = {
-  '1220688': { name: 'Alvin Tang Wei Guan',      role: 'manager'  },
-  '1286433': { name: 'Foo Chun Xuan',             role: 'agent'    },
-  '1248892': { name: 'Wong Casey',                role: 'agent'    },
-  '1243564': { name: 'Chua Chin Chin Zwen',       role: 'agent'    },
-  '1272173': { name: 'Loh Eng Kiat Daniel',       role: 'agent'    },
-  '1231795': { name: 'Ng Kian Yong Samson',       role: 'manager'  },
-  '1231370': { name: 'Celine Teresa Foo',         role: 'agent'    },
-  '1243696': { name: 'Chen Siang Hui',            role: 'agent'    },
-  '1281067': { name: 'Huang Jianshun Richmond',   role: 'agent'    },
-  '1220696': { name: 'Teo Rui Ling Pauline',      role: 'agent'    },
-  '1287511': { name: 'Ng Tian Poh Marco',         role: 'agent'    },
-  '1127688': { name: 'Ong Wui Swoon',             role: 'agent'    },
-  '1249341': { name: 'Tan Guan Ming',             role: 'agent'    },
-  '1269687': { name: 'Tan Verne Lyankuang',       role: 'agent'    },
-  '1220629': { name: 'Jason Ng',                  role: 'director' },
+  '1220688': { name: 'Alvin Tang Wei Guan',      short: 'Alvin',     role: 'manager'  },
+  '1286433': { name: 'Foo Chun Xuan',             short: 'Chantelle', role: 'agent'    },
+  '1248892': { name: 'Wong Casey',                short: 'Casey',     role: 'agent'    },
+  '1243564': { name: 'Chua Chin Chin Zwen',       short: 'Zwen',      role: 'agent'    },
+  '1272173': { name: 'Loh Eng Kiat Daniel',       short: 'Daniel',    role: 'agent'    },
+  '1231795': { name: 'Ng Kian Yong Samson',       short: 'Samson',    role: 'manager'  },
+  '1231370': { name: 'Celine Teresa Foo',         short: 'Celine',    role: 'agent'    },
+  '1243696': { name: 'Chen Siang Hui',            short: 'Siang Hui', role: 'agent'    },
+  '1281067': { name: 'Huang Jianshun Richmond',   short: 'Richmond',  role: 'agent'    },
+  '1220696': { name: 'Teo Rui Ling Pauline',      short: 'Pauline',   role: 'agent'    },
+  '1287511': { name: 'Ng Tian Poh Marco',         short: 'Marco',     role: 'agent'    },
+  '1127688': { name: 'Ong Wui Swoon',             short: 'Wui Swoon', role: 'agent'    },
+  '1249341': { name: 'Tan Guan Ming',             short: 'Guan Ming', role: 'agent'    },
+  '1269687': { name: 'Tan Verne Lyankuang',       short: 'Verne',     role: 'agent'    },
+  '1220629': { name: 'Jason Ng',                  short: 'Jason',     role: 'director' },
 };
 
 function extractValue(field) {
@@ -121,9 +121,8 @@ function findChamp(cases) {
   return { iac: ranked[0][0], ...ranked[0][1] };
 }
 
-function firstName(fullName) {
-  const parts = fullName.split(' ');
-  return parts[parts.length - 1];
+function displayName(iac) {
+  return USERS[iac] ? USERS[iac].short : 'Unknown';
 }
 
 function formatTypes(byType) {
@@ -135,7 +134,7 @@ function formatTypes(byType) {
 }
 
 function buildDailyChampMessage(champ, dateStr) {
-  const name = firstName(champ.name);
+  const name = displayName(champ.iac);
   const [y, m, d] = dateStr.split('-');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const label = `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
@@ -157,7 +156,7 @@ function buildDailyChampMessage(champ, dateStr) {
 }
 
 function buildWeeklyChampMessage(champ, weekDates) {
-  const name = firstName(champ.name);
+  const name = displayName(champ.iac);
   const startLabel = formatDate(weekDates[0]);
   const endLabel = formatDate(weekDates[weekDates.length - 1]);
   const types = Object.entries(champ.byType);
@@ -186,8 +185,8 @@ async function sendTelegram(text) {
 }
 
 async function main() {
-  const today = '2026-05-19'; // TEST — remove after testing
-  const dayName = 'Monday'; // TEST — remove after testing
+  const today = sgtDate();
+  const dayName = sgtDay();
   console.log(`Champ check for ${today} (${dayName})`);
 
   const dailyCases = await fetchCases(today);
