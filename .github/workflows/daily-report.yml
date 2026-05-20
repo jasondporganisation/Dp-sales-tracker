@@ -1,10 +1,10 @@
-name: Daily Sales Report
+name: Daily Sales Report & Champ
 
 on:
   repository_dispatch:
     types: [daily-report]
   schedule:
-    - cron: '45 11 * * *'   # 2 hrs early to offset GitHub Actions delay
+    - cron: '45 11 * * *'   # backup in case cron-job.org misses
   workflow_dispatch:
 
 jobs:
@@ -17,3 +17,5 @@ jobs:
           node-version: '18'
       - name: Send daily Telegram report
         run: node scripts/send-report.js
+      - name: Send daily champ message
+        run: node scripts/send-champ.js
