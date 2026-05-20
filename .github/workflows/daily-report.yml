@@ -4,7 +4,7 @@ on:
   repository_dispatch:
     types: [daily-report]
   schedule:
-    - cron: '45 13 * * *'   # 9:45 PM SGT = 13:45 UTC (backup)
+    - cron: '45 11 * * *'   # 2 hrs early to offset GitHub Actions delay
   workflow_dispatch:
 
 jobs:
