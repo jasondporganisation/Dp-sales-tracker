@@ -1,9 +1,11 @@
 name: Daily & Weekly Champ
 
 on:
+  repository_dispatch:
+    types: [daily-champ]
   schedule:
-    - cron: '50 13 * * *'   # 9:50 PM SGT = 13:50 UTC (5 min after daily report)
-  workflow_dispatch:          # Allow manual trigger
+    - cron: '50 13 * * *'   # 9:50 PM SGT = 13:50 UTC (backup)
+  workflow_dispatch:
 
 jobs:
   send-champ:
