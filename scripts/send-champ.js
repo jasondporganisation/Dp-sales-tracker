@@ -108,9 +108,12 @@ function findChamp(cases) {
   cases.forEach(c => {
     const iac = c.agentIAC;
     if (!iac) return;
-    if (!byAgent[iac]) byAgent[iac] = { name: c.agentName, cases: 0, premium: 0 };
+    if (!byAgent[iac]) byAgent[iac] = { name: c.agentName, cases: 0, premium: 0, byType: {} };
     byAgent[iac].cases++;
     byAgent[iac].premium += Number(c.premium) || 0;
+    const type = c.caseType || 'Other';
+    if (!byAgent[iac].byType[type]) byAgent[iac].byType[type] = 0;
+    byAgent[iac].byType[type]++;
   });
   const ranked = Object.entries(byAgent)
     .sort((a, b) => b[1].cases - a[1].cases || b[1].premium - a[1].premium);
@@ -123,13 +126,31 @@ function firstName(fullName) {
   return parts[parts.length - 1];
 }
 
+function formatTypes(byType) {
+  const types = Object.entries(byType);
+  if (types.length === 1) {
+    return `Type : ${types[0][0]}`;
+  }
+  return types.map(([type, count]) => `   ${type} — ${count} case${count !== 1 ? 's' : ''}`).join('\n');
+}
+
 function buildDailyChampMessage(champ, dateStr) {
   const name = firstName(champ.name);
-  const label = formatDate(dateStr);
-  let t = `🏆 *Daily Champ — ${label}*\n\n`;
+  const [y, m, d] = dateStr.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const label = `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
+  const types = Object.entries(champ.byType);
+  let t = `🏆 *Daily Champ — [${label}]*\n\n`;
   t += `Today's winner is *${name}* 🏆\n`;
-  t += `${champ.cases} case${champ.cases !== 1 ? 's' : ''} logged today!\n`;
-  t += `Mummy lead otw to you! 🎁\n\n`;
+  t += `Total sales : ${champ.cases} case${champ.cases !== 1 ? 's' : ''}\n`;
+  if (types.length === 1) {
+    t += `Type : ${types[0][0]}\n`;
+  } else {
+    types.forEach(([type, count]) => {
+      t += `   ${type} — ${count} case${count !== 1 ? 's' : ''}\n`;
+    });
+  }
+  t += `\nMummy lead otw to you! 🎁\n\n`;
   t += `To the rest of the team, keep going, don't give up! Remember to log your cases daily, every day is a new chance to win some leads 💪\n\n`;
   t += `Congrats ${name}! Amazing work today, you deserve it! 🎉🔥`;
   return t;
@@ -139,10 +160,18 @@ function buildWeeklyChampMessage(champ, weekDates) {
   const name = firstName(champ.name);
   const startLabel = formatDate(weekDates[0]);
   const endLabel = formatDate(weekDates[weekDates.length - 1]);
-  let t = `🥇 *Weekly Champ — ${startLabel}–${endLabel}*\n\n`;
+  const types = Object.entries(champ.byType);
+  let t = `🥇 *Weekly Champ — [${startLabel}–${endLabel}]*\n\n`;
   t += `And our weekly winner is *${name}* 🏆\n`;
-  t += `${champ.cases} case${champ.cases !== 1 ? 's' : ''} this week!\n`;
-  t += `2 mummy leads heading your way! 🎁🎁\n\n`;
+  t += `Total sales : ${champ.cases} case${champ.cases !== 1 ? 's' : ''}\n`;
+  if (types.length === 1) {
+    t += `Type : ${types[0][0]}\n`;
+  } else {
+    types.forEach(([type, count]) => {
+      t += `   ${type} — ${count} case${count !== 1 ? 's' : ''}\n`;
+    });
+  }
+  t += `\n2 mummy leads heading your way! 🎁🎁\n\n`;
   t += `To the rest of the team — new week is coming, fresh start for everyone! Stay consistent, log your cases and next week could be your week 💪\n\n`;
   t += `Massive congrats to ${name} for staying consistent all week! 🔥`;
   return t;
